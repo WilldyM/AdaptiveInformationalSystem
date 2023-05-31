@@ -1,22 +1,15 @@
 # -*- coding: utf-8 -*-
 
-################################################################################
-## Form generated from reading UI file 'auth_form.ui'
-##
-## Created by: Qt User Interface Compiler version 6.5.1
-##
-## WARNING! All changes made in this file will be lost when recompiling UI file!
-################################################################################
-
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
-    QMetaObject, QObject, QPoint, QRect,
-    QSize, QTime, QUrl, Qt)
+                            QMetaObject, QObject, QPoint, QRect,
+                            QSize, QTime, QUrl, Qt)
 from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
-    QFont, QFontDatabase, QGradient, QIcon,
-    QImage, QKeySequence, QLinearGradient, QPainter,
-    QPalette, QPixmap, QRadialGradient, QTransform)
+                           QFont, QFontDatabase, QGradient, QIcon,
+                           QImage, QKeySequence, QLinearGradient, QPainter,
+                           QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLineEdit, QPushButton,
-    QSizePolicy, QVBoxLayout, QWidget)
+                               QSizePolicy, QVBoxLayout, QWidget)
+
 
 class Ui_AuthForm(object):
     def setupUi(self, AuthForm):
@@ -49,7 +42,6 @@ class Ui_AuthForm(object):
 
         self.verticalLayout_2.addWidget(self.lineEdit_2)
 
-
         self.verticalLayout.addLayout(self.verticalLayout_2)
 
         self.horizontalLayout = QHBoxLayout()
@@ -70,24 +62,26 @@ class Ui_AuthForm(object):
 
         self.horizontalLayout.addWidget(self.registerButton)
 
-
         self.verticalLayout.addLayout(self.horizontalLayout)
-
 
         self.retranslateUi(AuthForm)
 
         QMetaObject.connectSlotsByName(AuthForm)
+
     # setupUi
 
     def retranslateUi(self, AuthForm):
         AuthForm.setWindowTitle(QCoreApplication.translate("AuthForm", u"Form", None))
-#if QT_CONFIG(tooltip)
+        # if QT_CONFIG(tooltip)
         self.lineEdit.setToolTip("")
-#endif // QT_CONFIG(tooltip)
+        # endif // QT_CONFIG(tooltip)
         self.lineEdit.setInputMask("")
         self.lineEdit.setText("")
         self.lineEdit.setPlaceholderText("")
-        self.authButton.setText(QCoreApplication.translate("AuthForm", u"\u0410\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f", None))
-        self.registerButton.setText(QCoreApplication.translate("AuthForm", u"\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f", None))
+        self.authButton.setText(QCoreApplication.translate("AuthForm",
+                                                           u"\u0410\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f",
+                                                           None))
+        self.registerButton.setText(QCoreApplication.translate("AuthForm",
+                                                               u"\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f",
+                                                               None))
     # retranslateUi
-
