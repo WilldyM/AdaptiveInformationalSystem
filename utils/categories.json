@@ -1,0 +1,56 @@
+[
+  {
+    "_id": "CSVInput",
+    "display_name": "CSV Загрузка",
+    "part_of": "CSV",
+    "cat_import": "from components.CSVConnector._csv_connector import CSVConnection"
+  },
+  {
+    "_id": "CSVOutput",
+    "display_name": "CSV Выгрузка",
+    "part_of": "CSV",
+    "cat_import": "from components.CSVConnector._csv_connector import CSVConnection"
+  },
+  {
+    "_id": "ExcelInput",
+    "display_name": "Excel Загрузка",
+    "part_of": "Excel",
+    "cat_import": "from components.ExcelConnector._excel_connector import ExcelConnection"
+  },
+  {
+    "_id": "ExcelOutput",
+    "display_name": "Excel Выгрузка",
+    "part_of": "Excel",
+    "cat_import": "from components.ExcelConnector._excel_connector import ExcelConnection"
+  },
+  {
+    "_id": "SQLInput",
+    "display_name": "SQL Загрузка",
+    "part_of": "SQL",
+    "cat_import": "from components.SQLConnector._sql_connector import SQLConnection"
+  },
+  {
+    "_id": "SQLOutput",
+    "display_name": "SQL Загрузка",
+    "part_of": "SQL",
+    "cat_import": "from components.SQLConnector._sql_connector import SQLConnection"
+  },
+  {
+    "_id": "SQLQuery",
+    "display_name": "SQL Запрос",
+    "part_of": "SQL",
+    "cat_import": "from components.SQLConnector._sql_connector import SQLConnection"
+  },
+  {
+    "_id": "RLTable",
+    "display_name": "Таблица",
+    "part_of": "Реляционные данные",
+    "cat_import": "from components.RelationalData.Table import RlTable"
+  },
+  {
+    "_id": "ADF",
+    "display_name": "Pandas.DataFrame",
+    "part_of": "Анализ данных",
+    "cat_import": "from components.Pandas.AdvancedDataFrame import AdvancedDataFrame"
+  }
+]
