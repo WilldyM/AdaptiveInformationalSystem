@@ -1,3 +1,4 @@
+py-bcrypt
 PySide6
 altgraph==0.17.3
 asgiref==3.5.0

@@ -65,7 +65,7 @@ class BackendTuple(BaseBackendObject):
     @classmethod
     @init_mongo_conn(MongoTuple)
     def init_from_mongo(cls, _id: Union[str, ObjectId]):
-        obj_dct = cls.mongo_conn.find_object(_id)
+        obj_dct = cls.mongo_conn.find_object({'_id': _id}, multiple=False)
         if obj_dct:
             back_obj = BackendTuple.deserialize(obj_dct)
             return back_obj

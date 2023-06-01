@@ -4,6 +4,7 @@ import json
 import config
 from model_srv.mongodb.CategoryService import BackendCategory
 from model_srv.mongodb.auth.AuthService import MongoAuthService
+from utils.global_utils import get_hashed_password
 
 
 def init_template_of_dirs():
@@ -28,5 +29,9 @@ def try_to_create_superuser():
     m = MongoAuthService()
     login_su = m.find_object({'role': 'superuser'}, multiple=False)
     if not login_su:
-        m.insert_object({'login': 'admin', 'password': 'admin', 'role': 'superuser'})
+        m.insert_object({'login': 'admin', 'password': get_hashed_password('admin'), 'role': 'superuser'})
     m.close_connection()
+
+
+if __name__ == '__main__':
+    try_to_create_superuser()

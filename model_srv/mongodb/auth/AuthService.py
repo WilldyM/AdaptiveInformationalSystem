@@ -4,6 +4,7 @@ from typing import Union
 from bson.objectid import ObjectId
 
 from model_srv.mongodb.BaseBackendObject import BaseMongoObject
+from utils.global_utils import get_hashed_password, check_password
 
 
 class MongoAuthService(BaseMongoObject):
@@ -39,7 +40,7 @@ class MongoAuthService(BaseMongoObject):
     def auth(self, login, password):
         obj = self.find_object({'login': login}, multiple=False)
         if obj:
-            if password == obj['password']:
+            if check_password(password, obj['password']):
                 print('success')
                 return obj
             else:
@@ -52,7 +53,7 @@ class MongoAuthService(BaseMongoObject):
         if not is_exists_login:
             if not password:
                 raise ValueError('password can not be empty')
-            reg_dct = {'login': login, 'password': password, 'role': 'user'}
+            reg_dct = {'login': login, 'password': get_hashed_password(password), 'role': 'user'}
             login_id = self.insert_object(reg_dct)
             reg_dct['_id'] = login_id
             return reg_dct

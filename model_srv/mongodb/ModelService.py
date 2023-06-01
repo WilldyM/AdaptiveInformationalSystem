@@ -52,27 +52,15 @@ class BackendModel(object):
 
         self._init_categories()
 
-    def process_query(self, q_listing, **func_args):
-        for k_arg, v_arg in func_args.items():
-            exec(f'{k_arg} = {v_arg}')
-        stop = False
-        q_line = q_listing
-        query_result = None
-        try:
-            while not stop:
-                line = q_line['line']
-                exec(line)
-                q_line = q_line.get('next_line')
-                if q_line is None:
-                    stop = True
-        except BaseException as e:
-            print(e)
-            query_result = {'res': {'status_ok': False, 'error_desc': str(e)}}
-        return query_result
+    @classmethod
+    @init_mongo_conn(MongoModel)
+    def get_all_models(cls, query):
+        obj_lst = cls.mongo_conn.find_object(query, multiple=True)
+        return obj_lst
 
-    def serialize(self, with_id=True):
+    def serialize(self, with_id=False):
         model_dct = self.__dict__.copy()
-        model_dct.pop('mongo_model')
+        model_dct.pop('mongo_conn')
         model_dct.pop('categories')
         if with_id is False:
             model_dct.pop('_id')
@@ -126,7 +114,7 @@ class BackendModel(object):
     @classmethod
     @init_mongo_conn(MongoModel)
     def init_from_mongo(cls, _id: Union[str, ObjectId]):
-        model_dct = cls.mongo_conn.find_object(_id)
+        model_dct = cls.mongo_conn.find_object({'_id': _id}, multiple=False)
         if model_dct:
             back_model = BackendModel.deserialize(model_dct)
             return back_model
