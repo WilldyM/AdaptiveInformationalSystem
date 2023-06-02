@@ -31,6 +31,7 @@ class MainWindow(QMainWindow):
         self.user = self.auth_widget.user
         self.auth_widget.setHidden(True)
         self.auth_widget = None
+
         self.centralwidget = ModelForm(self)
         self.centralwidget.user = self.user
         self.setCentralWidget(self.centralwidget)

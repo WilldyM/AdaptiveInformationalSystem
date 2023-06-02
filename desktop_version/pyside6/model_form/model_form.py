@@ -25,14 +25,42 @@ class ModelForm(QWidget, Ui_ModelForm):
 
     def __init__(self, parent=None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self.setupUi(self)
-        self.setLayout(self.horizontalLayout)
-
+        self.setup_ui()
         # init deafult schema
         self.init_model_tree_root_items()
 
         # connects modelTreeManagement
         self.modelTreeManagement.itemDoubleClicked.connect(self.model_tree_double_clicked_change)
+
+    def setup_ui(self):
+        self.setupUi(self)
+        self.setLayout(self.verticalLayout)
+        self.modelTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.tupleTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+
+        self.header_label = QLabel()
+        self.header_enabled = False
+
+    def create_menu_bar(self):
+        menu_bar = QMenuBar(self.parent())
+        menu = QMenu(self.parent())
+        menu.setTitle('Создать')
+        create_object_action = QAction('Создать объект', self.parent())
+        create_tuple_action = QAction('Создать кортеж', self.parent())
+        menu.addActions([create_object_action, create_tuple_action])
+        menu_bar.addMenu(menu)
+
+        self.parent().setMenuBar(menu_bar)
+
+        # connects
+        create_object_action.triggered.connect(self.on_create_object_action)
+        create_tuple_action.triggered.connect(self.on_create_tuple_action)
+
+    def on_create_object_action(self):
+        print('Creating object')
+
+    def on_create_tuple_action(self):
+        print('Creating tuple')
 
     def init_model_tree_root_items(self):
         modelItem = CustomTreeWidgetItem(self.modelTreeManagement, _id='mt_model')
@@ -94,6 +122,15 @@ class ModelForm(QWidget, Ui_ModelForm):
     def set_active_model(self, model_id, model_name):
         self.active_model = str(model_id)
         self.parent().setWindowTitle(f'AdaptiveIS.ModelManagement - {model_name}')
+
+        self.header_label.setText(model_name)
+        if not self.header_enabled:
+            self.verticalLayout.insertWidget(0, self.header_label, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.header_label.setFixedHeight(30)
+            self.header_label.setStyleSheet('font-size: 20px;')
+            self.header_enabled = True
+
+        self.create_menu_bar()
         print('Active_model:', self.active_model)
 
     def processing_child_mt_objects(self, child: CustomTreeWidgetItem):
