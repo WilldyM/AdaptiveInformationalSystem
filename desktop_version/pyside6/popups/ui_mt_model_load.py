@@ -22,10 +22,10 @@ class Ui_MtModelLoad(object):
     def setupUi(self, MtModelLoad):
         if not MtModelLoad.objectName():
             MtModelLoad.setObjectName(u"MtModelLoad")
-        MtModelLoad.resize(324, 250)
+        MtModelLoad.resize(463, 256)
         self.verticalLayoutWidget = QWidget(MtModelLoad)
         self.verticalLayoutWidget.setObjectName(u"verticalLayoutWidget")
-        self.verticalLayoutWidget.setGeometry(QRect(20, 20, 289, 133))
+        self.verticalLayoutWidget.setGeometry(QRect(20, 20, 422, 133))
         self.verticalLayout = QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -46,6 +46,22 @@ class Ui_MtModelLoad(object):
         self.pushButton.setMinimumSize(QSize(100, 30))
 
         self.horizontalLayout.addWidget(self.pushButton)
+
+        self.pushButton_3 = QPushButton(self.verticalLayoutWidget)
+        self.pushButton_3.setObjectName(u"pushButton_3")
+        sizePolicy.setHeightForWidth(self.pushButton_3.sizePolicy().hasHeightForWidth())
+        self.pushButton_3.setSizePolicy(sizePolicy)
+        self.pushButton_3.setMinimumSize(QSize(100, 30))
+
+        self.horizontalLayout.addWidget(self.pushButton_3)
+
+        self.pushButton_4 = QPushButton(self.verticalLayoutWidget)
+        self.pushButton_4.setObjectName(u"pushButton_4")
+        sizePolicy.setHeightForWidth(self.pushButton_4.sizePolicy().hasHeightForWidth())
+        self.pushButton_4.setSizePolicy(sizePolicy)
+        self.pushButton_4.setMinimumSize(QSize(100, 30))
+
+        self.horizontalLayout.addWidget(self.pushButton_4)
 
         self.pushButton_2 = QPushButton(self.verticalLayoutWidget)
         self.pushButton_2.setObjectName(u"pushButton_2")
@@ -68,6 +84,8 @@ class Ui_MtModelLoad(object):
     def retranslateUi(self, MtModelLoad):
         MtModelLoad.setWindowTitle(QCoreApplication.translate("MtModelLoad", u"Form", None))
         self.pushButton.setText(QCoreApplication.translate("MtModelLoad", u"\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c", None))
+        self.pushButton_3.setText(QCoreApplication.translate("MtModelLoad", u"\u041f\u0435\u0440\u0435\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u0442\u044c", None))
+        self.pushButton_4.setText(QCoreApplication.translate("MtModelLoad", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
         self.pushButton_2.setText(QCoreApplication.translate("MtModelLoad", u"\u041e\u0442\u043c\u0435\u043d\u0430", None))
     # retranslateUi
 

@@ -11,8 +11,8 @@ class MongoTuplePart(BaseMongoObject):
     def drop_collection(self):
         self.db.drop_collection(self.db.get_collection(self.tuple_parts_collection))
 
-    def insert_object(self, class_obj: 'BackendTuplePart'):
-        obj_dct = class_obj.serialize()
+    def insert_object(self, class_obj: 'BackendTuplePart', with_id=False):
+        obj_dct = class_obj.serialize(with_id=with_id)
         obj_id = self.insert_document(self.db.get_collection(self.tuple_parts_collection), obj_dct)
         return obj_id
 
@@ -21,6 +21,13 @@ class MongoTuplePart(BaseMongoObject):
             query['_id'] = ObjectId(query['_id'])
         obj = self.find_document(self.db.get_collection(self.tuple_parts_collection), query, multiple=multiple)
         return obj
+
+    def update_object(self, find_query: dict, set_query: dict, multiple: bool = False):
+        if find_query.get('_id'):
+            find_query['_id'] = ObjectId(find_query['_id'])
+        updated_obj = self.update_document(self.db.get_collection(self.tuple_parts_collection),
+                                           find_query, set_query, multiple=multiple)
+        return updated_obj
 
     def remove_object(self, query):
         if query.get('_id'):
@@ -41,7 +48,7 @@ class BackendTuplePart(BaseBackendObject):
         self.inputs = dict()
         self.outputs = dict()
 
-    def serialize(self, with_id=True):
+    def serialize(self, with_id=False):
         obj_dct = super().serialize(with_id=with_id)
         return obj_dct
 
@@ -54,8 +61,12 @@ class BackendTuplePart(BaseBackendObject):
         return back_obj
 
     @init_mongo_conn(MongoTuplePart)
-    def insert_object(self):
-        return super().insert_object(self)
+    def insert_object(self, with_id=False):
+        return super().insert_object(with_id=with_id)
+
+    @init_mongo_conn(MongoTuplePart)
+    def update_object(self):
+        return super().update_object()
 
     @init_mongo_conn(MongoTuplePart)
     def delete_object(self):

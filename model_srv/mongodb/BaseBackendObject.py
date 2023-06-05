@@ -31,10 +31,13 @@ class BaseMongoObject(MongoConfigBase):
     def drop_collection(self):
         pass
 
-    def insert_object(self, class_obj):
+    def insert_object(self, class_obj, with_id=False):
         pass
 
     def find_object(self, query, multiple=True) -> Union[dict, list]:
+        pass
+
+    def update_object(self, find_query, set_query, multiple=False):
         pass
 
     def remove_object(self, query):
@@ -44,14 +47,17 @@ class BaseMongoObject(MongoConfigBase):
 class BaseBackendObject(object):
     mongo_conn = None
 
-    def __init__(self, display_name: str, model: str, _id: str = None):
+    def __init__(self, display_name: str, model: Union[str, ObjectId], _id: str = None):
+        if isinstance(model, ObjectId):
+            model = str(model)
         self._id = _id
         self.display_name = display_name
         self.model = model
 
-    def serialize(self, with_id=True):
+    def serialize(self, with_id=False):
         obj_dct = self.__dict__.copy()
         obj_dct.pop('mongo_conn')
+        obj_dct['_id'] = ObjectId(obj_dct['_id'])
         if with_id is False:
             obj_dct.pop('_id')
         return obj_dct
@@ -60,17 +66,21 @@ class BaseBackendObject(object):
     def deserialize(obj_dct):
         pass
 
-    def insert_object(self):
+    def insert_object(self, with_id=False):
         try:
-            self._id = self.mongo_conn.insert_object(self)
+            self._id = self.mongo_conn.insert_object(self, with_id=with_id)
         except Exception as err:
             print(err)
             return None
         return self._id
 
+    def update_object(self):
+        obj_dct = self.serialize(with_id=False)
+        self.mongo_conn.update_object({'_id': self._id}, obj_dct, multiple=False)
+
     def delete_object(self):
         if self._id is not None:
-            self.mongo_conn.remove_object(self._id)
+            self.mongo_conn.remove_object({'_id': self._id})
             return True
         return False
 

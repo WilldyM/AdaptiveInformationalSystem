@@ -48,7 +48,7 @@ class SQLConnection(BaseConnectorComponent):
         self._db = conn_prm.get('database')
         self._user = conn_prm.get('username')
         self._pw = conn_prm.get('password')
-        self._trusted_connection = conn_prm.get('trusted_connection')
+        self._trusted_connection = conn_prm.get('trusted_connection', False)
         self.metamodel = None
 
         if conn_prm.get('port') == '':

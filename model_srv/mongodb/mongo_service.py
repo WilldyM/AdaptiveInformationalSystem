@@ -52,10 +52,13 @@ class MongoConfigBase(object):
             return collection.find_one(elements)
 
     @staticmethod
-    def update_document(collection, query_elements, new_values):
+    def update_document(collection, query_elements, new_values, multiple=False):
         """ Function to update a single document in a collection.
         """
-        collection.update_one(query_elements, {'$set': new_values})
+        if multiple:
+            return collection.update_many(query_elements, {'$set': new_values})
+        else:
+            return collection.update_one(query_elements, {'$set': new_values})
 
     @staticmethod
     def delete_document(collection, query):
