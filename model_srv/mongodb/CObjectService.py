@@ -50,29 +50,27 @@ class BackendCObject(BaseBackendObject):
         self.forms = dict()
         self.init_category_options()
 
+    @init_mongo_conn(MongoCObject)
+    def get_projection(self, previous=None):
+        cat_obj = self._import_category()
+        projection = cat_obj.get_projection(previous=previous)
+        return projection
+
+    def call_form(self, model_form, form_id, previous=None):
+        cat_obj = self._import_category()
+        called_method = self.forms[form_id]['method']
+        exec(f'cat_obj.{called_method}')
+
+    def _import_category(self):
+        category = self.get_bk_category()
+        exec(f'{category.cat_import} as _CATEGORY')
+        cat_obj = eval('_CATEGORY(self)')
+        return cat_obj
+
     @classmethod
     @init_mongo_conn(MongoCObject)
     def get_unique_name(cls, model_id: Union[str, ObjectId], start_value: str):
-        if isinstance(model_id, ObjectId):
-            model_id = str(model_id)
-        created_objects = cls.mongo_conn.find_object(
-            {
-                'model': str(model_id),
-                'display_name': {'$regex': '^' + start_value}
-            }
-        )
-        only_dn = [dn['display_name'] for dn in created_objects]
-        end_value = cls.new_name(start_value, only_dn)
-        return end_value
-
-    @staticmethod
-    def new_name(value, search_lst, i=0):
-        start_value = value + '_' + str(i) if i != 0 else value
-        end_value = start_value
-        if start_value in search_lst:
-            i += 1
-            end_value = BackendCObject.new_name(value, search_lst, i)
-        return end_value
+        return super().get_unique_name(model_id, start_value)
 
     def get_bk_category(self):
         bk_cat = BackendCategory.init_from_mongo(self.category)
@@ -83,8 +81,9 @@ class BackendCObject(BaseBackendObject):
         for t in bk_cat.template:
             self.properties[t['self_name']] = {
                 'self_name': t['self_name'],
-                'display_name': t['self_name'],
-                'value': t['default']
+                'display_name': t['display_name'],
+                'value': t['default'],
+                'certain': t['certain']
             }
         self.forms = bk_cat.forms
 

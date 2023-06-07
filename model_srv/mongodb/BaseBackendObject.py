@@ -54,12 +54,35 @@ class BaseBackendObject(object):
         self.display_name = display_name
         self.model = model
 
+    @classmethod
+    def get_unique_name(cls, model_id: Union[str, ObjectId], start_value: str):
+        if isinstance(model_id, ObjectId):
+            model_id = str(model_id)
+        created_objects = cls.mongo_conn.find_object(
+            {
+                'model': str(model_id),
+                'display_name': {'$regex': '^' + start_value}
+            }
+        )
+        only_dn = [dn['display_name'] for dn in created_objects]
+        end_value = cls.new_name(start_value, only_dn)
+        return end_value
+
+    @classmethod
+    def new_name(cls, value, search_lst, i=0):
+        start_value = value + '_' + str(i) if i != 0 else value
+        end_value = start_value
+        if start_value in search_lst:
+            i += 1
+            end_value = cls.new_name(value, search_lst, i)
+        return end_value
+
     def serialize(self, with_id=False):
         obj_dct = self.__dict__.copy()
         obj_dct.pop('mongo_conn')
-        obj_dct['_id'] = ObjectId(obj_dct['_id'])
-        if with_id is False:
-            obj_dct.pop('_id')
+        obj_dct.pop('_id')
+        if with_id is True:
+            obj_dct['_id'] = ObjectId(self._id)
         return obj_dct
 
     @staticmethod

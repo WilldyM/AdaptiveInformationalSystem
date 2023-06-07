@@ -9,11 +9,11 @@ class BaseConnectorComponent(BaseComponent):
     def load_tbl(self, tbl, table_name, field_map):
         pass
 
-    def build_queries(self, _q_data, preview_rows=0):
+    def build_queries(self, _q_data):
         pass
 
-    def extract_all(self, dont_change_answer=False):
+    def extract_all(self, model_form):
         pass
 
-    def get_metadata(self):
+    def get_metadata(self, model_form):
         return None

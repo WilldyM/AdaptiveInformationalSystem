@@ -5,9 +5,12 @@ from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 
 from desktop_version.pyside6.auth_form.auth_form import AuthForm
+from desktop_version.pyside6.custom_items.CustomAnimation import ArcWidget
 from desktop_version.pyside6.model_form.model_form import ModelForm
 
 from model_srv.mongodb.auth.AuthService import MongoAuthService
+
+from utils.startup_updates import init_categories_to_db, init_template_of_dirs, try_to_create_superuser
 
 
 class MainWindow(QMainWindow):
@@ -50,7 +53,15 @@ class MainWindow(QMainWindow):
                               (new_height - self.auth_widget.height()) / 2)
 
 
+def on_start_up():
+    try_to_create_superuser()
+    init_template_of_dirs()
+    init_categories_to_db()
+
+
 if __name__ == '__main__':
+    on_start_up()
+
     app = QApplication(sys.argv)
     form = MainWindow()
     form.show()

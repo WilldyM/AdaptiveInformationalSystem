@@ -53,7 +53,10 @@ class BackendCategory(BaseBackendObject):
         return categories
 
     def serialize(self, with_id=True):
-        obj_dct = super().serialize(with_id=with_id)
+        obj_dct = dict()
+        if with_id:
+            obj_dct['_id'] = str(self._id)
+        obj_dct.update(super().serialize(with_id=False))
         return obj_dct
 
     @staticmethod

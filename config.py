@@ -15,9 +15,9 @@ def normalize_path(path):
 
 load_dotenv()
 
-LOGGING_DIR = normalize_path(os.getenv('LOGGING'))
-TABLE_PARTS_DIR = normalize_path(os.getenv('TABLE_PARTS'))
-CATEGORIES_JSON = normalize_path(os.getenv('CATEGORIES_JSON'))
+LOGGING_DIR = os.path.join(root_dir, normalize_path(os.getenv('LOGGING')))
+TABLE_PARTS_DIR = os.path.join(root_dir, normalize_path(os.getenv('TABLE_PARTS')))
+CATEGORIES_JSON = os.path.join(root_dir, normalize_path(os.getenv('CATEGORIES_JSON')))
 
 # FONTS
 ARIALN = normalize_path(os.getenv('ARIALN'))

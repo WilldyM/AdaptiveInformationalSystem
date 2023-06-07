@@ -10,6 +10,7 @@ from desktop_version.pyside6.popups.popup_object_rename import PopupObjectRename
 from model_srv.mongodb.CObjectService import BackendCObject
 from model_srv.mongodb.CategoryService import BackendCategory
 from model_srv.mongodb.ModelService import BackendModel
+from model_srv.mongodb.TuplePartService import BackendTuplePart
 
 
 class MtObjectsService(object):
@@ -49,14 +50,13 @@ class MtObjectsService(object):
             bk_obj = BackendCObject.init_from_mongo(obj_id)
             bk_obj.display_name = value
             bk_obj.update_object()
-
-            bk_model = BackendModel.init_from_mongo(model_form.active_model)
-            model_form.update_model(bk_model)
         except Exception as err:
             MessageError('Переимнование объекта', f'Unhandled Error:\nTraceback: {err}')
         else:
             MessageInfo('Переимнование объекта', f'"{old_value}" -> "{value}"')
         finally:
+            bk_model = BackendModel.init_from_mongo(model_form.active_model)
+            model_form.update_model(bk_model)
             popup.close()
 
     @staticmethod
@@ -64,6 +64,13 @@ class MtObjectsService(object):
         try:
             obj_id = model_form.modelTreeManagement.currentItem().get_id()
             bk_obj = BackendCObject.init_from_mongo(obj_id)
+
+            bk_tuple_parts = BackendTuplePart.get_all_tuple_parts(model_id=bk_obj.model)
+            for bk_tp in bk_tuple_parts:
+                if str(bk_tp.c_object) == str(bk_obj._id):
+                    bk_tp.c_object = None
+                    bk_tp.update_object()
+
             bk_obj.delete_object()
 
             bk_model = BackendModel.init_from_mongo(model_form.active_model)

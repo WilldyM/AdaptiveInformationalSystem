@@ -74,12 +74,19 @@ class BackendModel(object):
         return True
 
     def add_tuple(self, bk_tuple: Union[str, ObjectId, BackendTuple]):
-        if isinstance(bk_tuple, str):
-            self.tuples.append(bk_tuple)
-        elif isinstance(bk_tuple, ObjectId):
+        if isinstance(bk_tuple, (str, ObjectId)):
             self.tuples.append(str(bk_tuple))
         elif isinstance(bk_tuple, BackendTuple):
             self.tuples.append(str(bk_tuple._id))
+        else:
+            return False
+        return True
+
+    def remove_tuple(self, bk_tuple: Union[str, ObjectId, BackendTuple]):
+        if isinstance(bk_tuple, (str, ObjectId)):
+            self.tuples.remove(str(bk_tuple))
+        elif isinstance(bk_tuple, BackendTuple):
+            self.tuples.remove(str(bk_tuple._id))
         else:
             return False
         return True

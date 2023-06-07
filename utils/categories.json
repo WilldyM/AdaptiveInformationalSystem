@@ -4,28 +4,31 @@
     "display_name": "CSV Загрузка",
     "part_of": "CSV",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "extract": {"form_name": "Загрузка данных", "method": "extract_all()"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "extract": {"form_name": "Загрузка данных", "method": "extract_all(model_form)"}
     },
     "template": [
       {
         "self_name": "filename",
         "display_name": "Имя файла",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": "file [\"*.csv\",\"*.txt\"]"
       },
       {
         "self_name": "delimiter",
         "display_name": "Разделитель",
         "default": ",",
-        "possible_values": [",", ";"]
+        "possible_values": [",", ";"],
+        "certain": null
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.CSVConnector._csv_connector import CSVConnection"
@@ -35,28 +38,31 @@
     "display_name": "CSV Выгрузка",
     "part_of": "CSV",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(previous)"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(model_form, previous)"}
     },
     "template": [
       {
         "self_name": "filename",
         "display_name": "Имя файла",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": "file [\"*.csv\",\"*.txt\"]"
       },
       {
         "self_name": "delimiter",
         "display_name": "Разделитель",
         "default": ",",
-        "possible_values": [",", ";"]
+        "possible_values": [",", ";"],
+        "certain": null
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.CSVConnector._csv_connector import CSVConnection"
@@ -66,22 +72,24 @@
     "display_name": "Excel Загрузка",
     "part_of": "Excel",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "extract": {"form_name": "Загрузка данных", "method": "extract_all()"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "extract": {"form_name": "Загрузка данных", "method": "extract_all(model_form)"}
     },
     "template": [
       {
         "self_name": "filename",
         "display_name": "Имя файла",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": "file [\"*.xlsx\"]"
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.ExcelConnector._excel_connector import ExcelConnection"
@@ -91,22 +99,24 @@
     "display_name": "Excel Выгрузка",
     "part_of": "Excel",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(previous)"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(model_form, previous)"}
     },
     "template": [
       {
         "self_name": "filename",
         "display_name": "Имя файла",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": "file [\"*.xlsx\"]"
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.ExcelConnector._excel_connector import ExcelConnection"
@@ -116,52 +126,59 @@
     "display_name": "SQL Загрузка",
     "part_of": "SQL",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "extract": {"form_name": "Загрузка данных", "method": "extract_all()"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "extract": {"form_name": "Загрузка данных", "method": "extract_all(model_form)"}
     },
     "template": [
       {
         "self_name": "driver",
         "display_name": "Драйвер",
         "default": null,
-        "possible_values": ["pymysql", "psycopg2", "cx_oracle", "pyodbc"]
+        "possible_values": ["pymysql", "psycopg2", "cx_oracle", "pyodbc"],
+        "certain": null
       },
       {
         "self_name": "server",
         "display_name": "URL Сервера",
         "default": "http://localhost/",
-        "possible_values": []
+        "possible_values": [],
+        "certain": "URL"
+      },
+      {
+        "self_name": "port",
+        "display_name": "Порт",
+        "default": null,
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "database",
         "display_name": "Наименование Базы Данных",
         "default": null,
-        "possible_values": []
-      },
-      {
-        "self_name": "server",
-        "display_name": "URL Сервера",
-        "default": "http://localhost/",
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "username",
         "display_name": "Имя пользователя",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "password",
         "display_name": "Пароль",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.SQLConnector._sql_connector import SQLConnection"
@@ -171,52 +188,59 @@
     "display_name": "SQL Выгрузка",
     "part_of": "SQL",
     "forms": {
-      "init_properties": {"form_name": "Форма подключения", "method": "init_form()"},
-      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata()"},
-      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(previous)"}
+      "init_properties": {"form_name": "Форма подключения", "method": "init_form(model_form)"},
+      "metadata": {"form_name": "Форма метаданных", "method": "get_metadata(model_form)"},
+      "load": {"form_name": "Выгрузка данных", "method": "load_tbl(model_form, previous)"}
     },
     "template": [
       {
         "self_name": "driver",
         "display_name": "Драйвер",
         "default": null,
-        "possible_values": ["pymysql", "psycopg2", "cx_oracle", "pyodbc"]
+        "possible_values": ["pymysql", "psycopg2", "cx_oracle", "pyodbc"],
+        "certain": null
       },
       {
         "self_name": "server",
         "display_name": "URL Сервера",
         "default": "http://localhost/",
-        "possible_values": []
+        "possible_values": [],
+        "certain": "URL"
+      },
+      {
+        "self_name": "port",
+        "display_name": "Порт",
+        "default": null,
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "database",
         "display_name": "Наименование Базы Данных",
         "default": null,
-        "possible_values": []
-      },
-      {
-        "self_name": "server",
-        "display_name": "URL Сервера",
-        "default": "http://localhost/",
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "username",
         "display_name": "Имя пользователя",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "password",
         "display_name": "Пароль",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "q_data",
         "display_name": "Данные для запроса",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.SQLConnector._sql_connector import SQLConnection"
@@ -226,14 +250,15 @@
     "display_name": "Таблица",
     "part_of": "Реляционные данные",
     "forms": {
-      "show_table": {"form_name": "Форма таблицы", "method": "show_table()"}
+      "show_table": {"form_name": "Форма таблицы", "method": "show_table(model_form, previous)"}
     },
     "template": [
       {
         "self_name": "cache_table",
         "display_name": "Таблица",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": "file"
       }
     ],
     "cat_import": "from components.RelationalData.Table import RlTable"
@@ -243,20 +268,22 @@
     "display_name": "Pandas.DataFrame",
     "part_of": "Анализ данных",
     "forms": {
-      "adf_form": {"form_name": "Форма анализа данных", "method": "load_options()"}
+      "adf_form": {"form_name": "Форма анализа данных", "method": "load_options(model_form, previous)"}
     },
     "template": [
       {
         "self_name": "table",
         "display_name": "Таблицы",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       },
       {
         "self_name": "operands",
         "display_name": "Операнды",
         "default": null,
-        "possible_values": []
+        "possible_values": [],
+        "certain": null
       }
     ],
     "cat_import": "from components.Pandas.AdvancedDataFrame import AdvancedDataFrame"

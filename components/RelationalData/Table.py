@@ -1,68 +1,87 @@
-import mcore_root.ModelCore as MC
-from model_srv.md_el_obj import MDObject
+import os
+import tempfile
+
 import pandas as pd
 import json
 import numpy as np
+
+from components.RelationalData.custom_forms.load_data import TableLoadDataForm
+from desktop_version.pyside6.messages.messagebox import MessageError, MessageInfo
 from model_srv.BaseComponent.BaseDataComponent import BaseDataComponent
-from model_srv.TMPFile import TMPFile
+from model_srv.mongodb.CObjectService import BackendCObject
+
+import config
 
 
 class RlTable(BaseDataComponent):
-    def __init__(self, fields: list, data_space: MC.Model):
-        self.fields = fields
-        self.data_space = data_space
+    def __init__(self, bk_object: BackendCObject):
+        self.base_dir = config.TABLE_PARTS_DIR
+        self.bk_object = bk_object
+        self.cache_table = bk_object.properties['cache_table']['value']
 
-    @staticmethod
-    def get_data(mdobj, load_relational_data=True):
-        if load_relational_data:
-            # r = mdobj.run({}, 'show_table')['show_table']
-            # mdobj.res = None
-            r = RlTable.show_table(mdobj.self_name, mdobj.metamodel)
+    def read_feather(self, change_answer=False):
+        if self.cache_table:
+            try:
+                tmp_path = os.path.join(self.base_dir, self.cache_table)
+                df = pd.read_feather(tmp_path)
+                if change_answer:
+                    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+                    df.replace(np.nan, 'NaN', inplace=True)
+                table_data = json.loads(df.to_json(orient='split'))
+                table_data.pop('index')
+                return table_data
+            except Exception as err:
+                MessageError('Таблица', f'Traceback:\n{err}')
+                self.cache_table = self.bk_object.properties['cache_table']['value'] = None
         else:
-            # data = mdobj.run({}, 'show_table')['show_table']
-            # mdobj.res = None
-            data = RlTable.show_table(mdobj.self_name, mdobj.metamodel)
-            r = {'fields': data['columns']}
-        return r
+            MessageInfo('Таблица', 'Нет сохраннёной таблицы')
+        return None
 
-    @staticmethod
-    def show_table(table_name, metamodel):
-        data_space = metamodel.objects[table_name].properties['data_space']
-        ds_obj = metamodel.dt_spaces[data_space]
-        fields_mdobject = list(metamodel.objects[table_name].properties['fields'].keys())
-        fields = [f for f in fields_mdobject if ds_obj.values.get(f) is not None]
-        if len(fields) != len(fields_mdobject):
-            metamodel.objects[table_name].properties['fields'] = {f: f for f in fields}
+    def get_projection(self, previous):
+        if not previous:
+            return self.read_feather()
+        else:
+            self._update_table(model_form=None, previous=previous)
+            return self.read_feather()
+
+    def show_table(self, model_form, previous=None):
+        if not previous:
+            self._show_table(model_form)
+        else:
+            self._update_table(model_form, previous)
+
+    def _show_table(self, model_form):
+        table_data = self.read_feather(change_answer=True)
+        if table_data is not None:
+            form = TableLoadDataForm(model_form, self, {self.bk_object.display_name: table_data})
+            form.show()
+
+    def _update_table(self, model_form=None, previous: dict = None):
+        tmpname = RlTable.get_unique_filename(path=self.base_dir)
+        tmp_path = os.path.join(self.base_dir, tmpname)
         try:
-            r = ds_obj.asc_list_as_table(ds_obj.values[table_name].asc_lst, fields)
-            ret_df = pd.DataFrame(r)
-            r = json.loads(ret_df.replace(np.nan, 'NaN').to_json(orient='split'))
-            r.pop('index')
-        except KeyError:
-            r = {'data': [], 'columns': []}
-        return r
+            prev_key = list(previous.keys())[0]
+            prev = previous.pop(prev_key)
+            _df = pd.DataFrame(data=prev['data'], columns=prev['columns'])
+            _df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            _df.replace('NaN', np.nan, inplace=True)
+            _df.to_feather(tmp_path)
+        except:
+            for _ in _df.select_dtypes(include=['object']).columns:
+                _df[_] = _df[_].astype('str')
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            _df.to_feather(tmp_path)
 
+        if isinstance(_df, pd.DataFrame):
+            self.bk_object.properties['cache_table']['value'] = self.cache_table = tmpname
+            self.bk_object.update_object()
+            if model_form is not None:
+                self._show_table(model_form)
 
     @staticmethod
-    def to_clear_table_data(_mdo: MDObject):
-        ds_name = _mdo.properties['data_space']
-        ds_obj = _mdo.metamodel.dt_spaces[ds_name]
-        d_obj = ds_obj.values.get(_mdo.self_name)
-        cleared_asc_dct = d_obj.clear_asc()
-
-        ds_obj.data_objects[d_obj.obj_id] = None
-        ds_obj.empty_places.append(d_obj.obj_id)
-        ds_obj.values.pop(d_obj.obj_value, None)
-
-        for asc_name, asc_obj in cleared_asc_dct.items():
-            if asc_obj.associations == {}:
-                ds_obj.data_objects[asc_obj.obj_id] = None
-                ds_obj.values.pop(asc_name, None)
-            else:
-                asc_obj_lst = dict(asc_obj.associations)
-                asc_obj_lst.update(dict(asc_obj.objects))
-                asc_obj_lst = list(asc_obj_lst.keys())
-                ds_obj.values[ds_obj._get_asc_value(asc_obj_lst)] = asc_obj
-                del ds_obj.values[asc_name]
-        # ds_obj.relational_delete_table(_mdo.self_name)
-        return True
+    def get_unique_filename(path: str, prefix: str = '', extension: str = ''):
+        while True:
+            tmp = prefix + next(tempfile._get_candidate_names()) + extension
+            if not os.path.isfile(os.path.join(path, tmp)):
+                return tmp

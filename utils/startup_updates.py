@@ -33,7 +33,7 @@ def init_categories_to_db():
     for category in categories:
         category['model'] = 'all'
         back_cat = BackendCategory(**category)
-        back_cat.insert_object()
+        back_cat.insert_object(with_id=True)
 
 
 def try_to_create_superuser():

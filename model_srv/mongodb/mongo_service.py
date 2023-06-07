@@ -15,6 +15,7 @@ class MongoConfigBase(object):
     tuples_collection = 'tuples'
     tuple_parts_collection = 'tuple_parts'
     categories_collection = 'categories'
+    groups_collection = 'groups'
 
     users_collection = 'users'
 

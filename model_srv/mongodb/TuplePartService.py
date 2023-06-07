@@ -4,6 +4,7 @@ from typing import Union
 from bson.objectid import ObjectId
 
 from model_srv.mongodb.BaseBackendObject import init_mongo_conn, BaseMongoObject, BaseBackendObject
+from model_srv.mongodb.CObjectService import BackendCObject
 
 
 class MongoTuplePart(BaseMongoObject):
@@ -42,11 +43,35 @@ class MongoTuplePart(BaseMongoObject):
 
 class BackendTuplePart(BaseBackendObject):
 
-    def __init__(self, display_name: str, model: str, c_object: str, _id: str = None):
+    def __init__(self, display_name: str, model: str, c_object: str = None, _id: str = None):
         super().__init__(display_name, model, _id)
         self.c_object = c_object
         self.inputs = dict()
         self.outputs = dict()
+
+    def set_c_object(self, c_object: Union[str, ObjectId, BackendCObject]):
+        if isinstance(c_object, (str, ObjectId)):
+            self.c_object = str(c_object)
+        elif isinstance(c_object, BackendCObject):
+            self.c_object = str(c_object._id)
+
+    def get_c_object(self):
+        if self.c_object is None or self.c_object == '':
+            return None
+        bk_object = BackendCObject.init_from_mongo(self.c_object)
+        return bk_object
+
+    @classmethod
+    @init_mongo_conn(MongoTuplePart)
+    def get_unique_name(cls, model_id: Union[str, ObjectId], start_value: str):
+        return super().get_unique_name(model_id, start_value)
+
+    @classmethod
+    @init_mongo_conn(MongoTuplePart)
+    def get_all_tuple_parts(cls, model_id):
+        tuple_parts = cls.mongo_conn.find_object({'model': model_id})
+        bk_tuple_parts = [BackendTuplePart.init_from_mongo(tp['_id']) for tp in tuple_parts]
+        return bk_tuple_parts
 
     def serialize(self, with_id=False):
         obj_dct = super().serialize(with_id=with_id)
