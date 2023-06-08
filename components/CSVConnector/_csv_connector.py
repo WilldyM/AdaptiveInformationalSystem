@@ -36,7 +36,11 @@ class CSVConnection(BaseConnectorComponent):
         self.build_queries(self.bk_object.properties['q_data']['value'])
         for filename, columns in self.queries.items():
             self.extract(filename, columns)
-        return self.data
+        result = list()
+        for k, v in self.data.items():
+            v['table_name'] = k
+            result.append(v)
+        return result
 
     def get_possible_values(self, _property) -> list:
         bk_category = self.bk_object.get_bk_category()

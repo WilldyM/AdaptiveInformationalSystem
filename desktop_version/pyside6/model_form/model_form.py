@@ -45,17 +45,25 @@ class ModelForm(QWidget, Ui_ModelForm):
     def setup_ui(self):
         self.setupUi(self)
         self.setLayout(self.verticalLayout)
-        self.modelTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.tupleTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.setStyleSheet('''
+        QPushButton {
+            margin-left: 2px;
+            margin-right: 2px;
+        }
+        ''')
+        # self.modelTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        # self.tupleTreeManagement.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         # connects TreeWidgets
         self.modelTreeManagement.itemDoubleClicked.connect(self.model_tree_double_clicked_change)
+        self.modelTreeManagement.setFocusPolicy(Qt.NoFocus)
 
         # custom context menu mt
         self.modelTreeManagement.setContextMenuPolicy(Qt.CustomContextMenu)
         self.modelTreeManagement.customContextMenuRequested.connect(self.show_mt_objects_context_menu)
 
         # custom context menu tt
+        self.tupleTreeManagement.setFocusPolicy(Qt.NoFocus)
         self.tupleTreeManagement.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tupleTreeManagement.customContextMenuRequested.connect(self.show_tt_tuple_context_menu)
         self.tupleTreeManagement.setColumnCount(2)

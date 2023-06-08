@@ -23,7 +23,7 @@ class MtModelService(object):
         if not model_form.header_enabled:
             model_form.verticalLayout.insertWidget(0, model_form.header_label, alignment=Qt.AlignmentFlag.AlignCenter)
             model_form.header_label.setFixedHeight(30)
-            model_form.header_label.setStyleSheet('font-size: 20px;')
+            model_form.header_label.setStyleSheet('font-size: 20px; color: #c00;')
             model_form.header_enabled = True
 
         model_form.create_menu_bar()

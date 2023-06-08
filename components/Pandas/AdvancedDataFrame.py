@@ -10,20 +10,18 @@ import pandas as pd
 import numpy as np
 
 import config
+from components.Pandas.custom_forms.operands_form import OperandsForm
+from desktop_version.pyside6.messages.messagebox import MessageInfo, MessageError
 
-from Components.DataStream.extract import Extraction
-from Components.Pandas._dataframe import _Dataframe
-
-from model_srv.md_el_obj import MDObject
 from model_srv.BaseComponent.BaseDataComponent import BaseDataComponent
-import model_srv.utils._globals as gl
-from model_srv.TMPFile import TMPFile
+from model_srv.mongodb.CObjectService import BackendCObject
+from utils import global_utils as gl
 
 
 class AdvancedDataFrame(BaseDataComponent):
 
-    def __init__(self, _mdo: MDObject):
-        self._mdo = _mdo
+    def __init__(self, bk_object: BackendCObject, previous=None):
+        self.bk_object = bk_object
         self.tables = dict()
         self.options = dict()
         self._date_cols = dict()
@@ -33,13 +31,16 @@ class AdvancedDataFrame(BaseDataComponent):
 
         self.table_df = None
 
-        self.operands = _mdo.properties['operands'] if _mdo.properties['operands'] != '' else {}
+        if bk_object.properties['operands']['value']:
+            self.operands = bk_object.properties['operands']['value']
+        else:
+            self.operands = {}
 
         if self.operands.get('main_mapper') is None:
             self.operands['main_mapper'] = {}
 
         if not self.tables:
-            self._init_tables()
+            self._init_tables(previous=previous)
 
         self.update_from_mapper()
         if not isinstance(self.operands, dict) or self.operands.get('tables') is None:
@@ -55,24 +56,22 @@ class AdvancedDataFrame(BaseDataComponent):
         self._init_options()
         self._save_operands(self.operands)
 
-    @staticmethod
-    def non_default_properties_processing(md_obj, method):
-        if 'AdvancedDataFrame' in md_obj.categories and method == md_obj.self_name:
-            md_obj.outputs[method] = copy.deepcopy(md_obj)
-            return True
-        elif 'AdvancedDataFrame' in md_obj.categories:
-            _df = md_obj.run({}, 'refresh_data').pop('refresh_data')
-            md_obj.outputs[method] = _df.refresh_data({}, method, get_full_res=True)
-            return True
+    def get_projection(self, previous=None):
+        result_tables = list()
+        for tbl_name in self.operands['tables'].keys():
+            result_tables.append(self.refresh_data(None, tbl_name))
+        return result_tables
 
-    @staticmethod
-    def specified_possible_out_values(el_obj, opv):
-        if isinstance(el_obj.object.properties['operands'], dict):
-            tables = el_obj.object.properties['operands'].get('tables', None)
-            if tables is not None:
-                for tbl, tbl_opt in tables.items():
-                    opv[tbl] = tbl_opt['display_name']
-        return opv
+    def load_options(self, model_form, previous=None):
+        if not previous:
+            MessageInfo('DataFrame', 'На входе нет данных')
+            return
+        r = {
+            'operands': self.update_possible_values(),
+            'functions': self.options['functions']
+        }
+        form = OperandsForm(model_form, options=r)
+        form.show()
 
     def update_from_mapper(self):
         for src_tbl, src_tbl_opt in self.operands['main_mapper'].items():
@@ -203,18 +202,6 @@ class AdvancedDataFrame(BaseDataComponent):
                 self.operands['tables'][str(tbl).replace(' ', '_')]['type'] = 'Таблица'
                 self.operands['tables'][str(tbl).replace(' ', '_')]['is_in'] = True
                 self.operands['tables'][str(tbl).replace(' ', '_')]['expression'] = {}
-
-    def extract_to_data_space(self, _tbl_name: str):
-        data_space_name = self._mdo.properties['data_space']
-        data_space = self._mdo.metamodel.dt_spaces.get(data_space_name)
-        table_name = 'ADF.' + _tbl_name
-        if data_space:
-            _df = self.refresh_data({}, _tbl_name, ret_df=True)
-            fields = data_space.add_df_to_model(_df, table_name)
-            tbl_obj = Extraction.add_table(table_name, fields, self._mdo.metamodel)
-            tbl_obj.properties['data_space'] = data_space.name
-            return self._mdo.metamodel.json_dump()['metadata']['objects']
-        raise Exception('Свойство data_space не указано')
 
     def edit_table_name(self, self_name, display_name):
         self.operands['tables'][self_name]['display_name'] = display_name
@@ -846,13 +833,6 @@ class AdvancedDataFrame(BaseDataComponent):
 
         return params
 
-    def load_options(self):
-        r = {
-            'operands': self.update_possible_values(),
-            'functions': self.options['functions']
-        }
-        return r
-
     def update_table_from_prop(self, tbl_name: str, tbl_prop: dict):
         try:
             parsed_operands = self._parse_tbl_func({tbl_name: tbl_prop}, self.operands['tables'])
@@ -902,7 +882,7 @@ class AdvancedDataFrame(BaseDataComponent):
                     changed_columns[col] = _col
             table_df.rename(columns=changed_columns, inplace=True)
 
-    def refresh_data(self, _operands: dict = None, _action: str = None, ret_df=False, get_full_res=False):
+    def refresh_data(self, _operands: dict = None, _action: str = None, ret_df=False, get_full_res=True):
         self._transform_to_datetime()
 
         res_data = dict()
@@ -951,19 +931,9 @@ class AdvancedDataFrame(BaseDataComponent):
                     self._transform_to_datetime()
                     self._transform_from_datetime()
 
-                    if not get_full_res:
-                        filename = TMPFile.create_tmp_file(data=self.table_df)
-                        self._mdo.metamodel.tmp_files[filename] = TMPFile.get_iterator(filename, size=100, is_df=False)
-                        res_data = TMPFile.next(self._mdo.metamodel.tmp_files[filename])
-                        if res_data is None:
-                            self._mdo.metamodel.remove_table_cache(filename)
-                            res_data = {
-                                'data': [],
-                                'columns': list(self.table_df.columns)
-                            }
-                    else:
-                        res_data = json.loads(self.table_df.to_json(orient='split'))
-                        res_data.pop('index')
+
+                    res_data = json.loads(self.table_df.to_json(orient='split'))
+                    res_data.pop('index')
                     res_data['operands'] = self.update_possible_values()
 
                     return res_data
@@ -5156,22 +5126,9 @@ class AdvancedDataFrame(BaseDataComponent):
     def _save_operands(self, operands: dict):
         if operands:
             self.operands = operands
-            self._mdo.prop('operands', operands)
+            self.bk_object.properties['operands']['value'] = operands
+            self.bk_object.update_object()
         return self.operands
-
-    def _save_data(self):
-        self._transform_from_datetime()
-        new_data_files = dict()
-        for tbl_name, table in self.tables.items():
-            if not isinstance(table, pd.DataFrame):
-                return False
-            tmpname = AdvancedDataFrame._get_unq_filename(path=True, suffix=True)
-            table.to_feather(tmpname)
-
-            new_data_files[tbl_name] = Path(tmpname).stem
-
-        self._mdo.prop('df_data', new_data_files)
-        return True
 
     def _filter_runtime_fields(self, fields_operands: dict):
         for fld, fld_opt in fields_operands.items():
@@ -5202,8 +5159,13 @@ class AdvancedDataFrame(BaseDataComponent):
         source_columns = data_dct['columns']
         data = data_dct['data']
 
-        source_tbl_name = data_dct['operands']['tables'][tbl]['display_name']
-        current_tbl_name = source_tbl_name.replace(' ', '_')
+        if data_dct.get('operands'):
+            source_tbl_name = data_dct['operands']['tables'][tbl]['display_name']
+            current_tbl_name = source_tbl_name.replace(' ', '_')
+        else:
+            source_tbl_name = tbl
+            tbl_bk_object = BackendCObject.init_from_mongo(tbl)
+            current_tbl_name = tbl_bk_object.display_name
         current_columns = [self.new_name(col.replace(' ', '_'), self.columns_id) for col in source_columns]
         for col in current_columns:
             self.columns_id[col] = col
@@ -5211,67 +5173,17 @@ class AdvancedDataFrame(BaseDataComponent):
 
         self.set_tbl_to_mapper(source_tbl_name, current_tbl_name, source_columns, current_columns)
 
-    def _init_extraction_tables(self, mdo):
-        for tbl_name, s_t in mdo.items():
-            if s_t.get('columns') and s_t.get('data'):
-                source_columns = s_t['columns']
-                current_columns = [
-                    self.new_name(col_name.replace(' ', '_'), self.columns_id)
-                    for col_name in s_t['columns']
-                ]
-                for col in current_columns:
-                    self.columns_id[col] = col
-                table = pd.DataFrame(s_t['data'],
-                                     columns=source_columns).replace('NaN', np.nan)
-
-                source_tbl_name = tbl_name
-                current_tbl_name = tbl_name.replace(' ', '_')
-                self.tables[source_tbl_name] = table
-
-                self.set_tbl_to_mapper(source_tbl_name, current_tbl_name, source_columns, current_columns)
-
-    def _init_tables(self):
+    def _init_tables(self, previous: list = None):
         self.columns_id = {}
         try:
-            mdo_tables = dict()
-            for item in self._mdo.inputs.values():
-                for tbl, mdo in item.items():
-                    if isinstance(mdo, MDObject) and 'AdvancedDataFrame' in mdo.categories:
-                        for k, v in mdo.properties['operands'].get('tables', {}).items():
-                            _df = mdo.run({}, 'refresh_data').pop('refresh_data')
-                            data_dct = _df.refresh_data({}, k, get_full_res=True)
-                            self._init_adf_table(data_dct, k)
-                    elif isinstance(mdo, MDObject):
-                        mdo_tables[str(tbl).replace(' ', '_')] = mdo
-                    elif isinstance(mdo, dict) and mdo.get('columns') and mdo.get('data') and mdo.get('operands'):
-                        self._init_adf_table(mdo, tbl)
-                    elif isinstance(mdo, dict):
-                        self._init_extraction_tables(mdo)
+            if isinstance(previous, dict):
+                self._init_adf_table(previous, previous['table_name'])
+            else:
+                for tbl_item in previous:
+                    self._init_adf_table(tbl_item, tbl_item['table_name'])
         except Exception:
+            MessageError('DataFrame', 'Не удалось загрузить таблицу')
             return
-        for tbl_name, tbl in mdo_tables.items():
-            s_t = tbl.run({}, 'show_table').pop('show_table')
-            source_columns = s_t['columns']
-            current_columns = [self.new_name(col_name.replace(' ', '_'),
-                                             self.columns_id) for col_name in s_t['columns']]
-            for col in current_columns:
-                self.columns_id[col] = col
-            table = pd.DataFrame(s_t['data'], columns=source_columns).replace('NaN', np.nan)
-            source_tbl_name = tbl_name
-            current_tbl_name = tbl.display_name['ru'].replace(' ', '_')
-            self.tables[source_tbl_name] = table
-
-            self.set_tbl_to_mapper(source_tbl_name, current_tbl_name, source_columns, current_columns)
-
-    def _load_from_df_data(self):
-        data_files = self._mdo.properties['df_data']
-        if data_files != '':
-            for tbl_name, file in data_files.items():
-                try:
-                    df = pd.read_feather(AdvancedDataFrame._get_path(file, suffix=True))
-                    self.tables[tbl_name] = df
-                except:
-                    continue
 
     def _transform_to_datetime(self):
         for tbl_name, table in self.tables.items():

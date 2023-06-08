@@ -7,52 +7,121 @@ import config
 
 from openpyxl import load_workbook
 
+from components.ExcelConnector.custom_forms.extract_form import ExcelExtractForm
+from components.ExcelConnector.custom_forms.init_form import ExcelInitForm
+from components.ExcelConnector.custom_forms.metadata_form import ExcelMetadataForm
 from model_srv.BaseComponent.BaseConnectorComponent import BaseConnectorComponent
+from model_srv.mongodb.CObjectService import BackendCObject
 
 
 class ExcelConnection(BaseConnectorComponent):
 
-    def __init__(self, conn_prm: dict):
-        self.username = conn_prm.get('username', '')
-        self.base_dir = os.path.join(config.FTP_DIR, self.username)
-
-        self.filename = conn_prm.get('filename', '')
-        self.filename = self.filename.split(';')
-        self.filename = [fn for fn in self.filename if fn != '']
+    def __init__(self, bk_object: BackendCObject):
+        self.bk_object = bk_object
+        if bk_object.properties['filename']['value']:
+            self.filename = os.path.basename(bk_object.properties['filename']['value'])
+        else:
+            self.filename = ''
+        if bk_object.properties['filename']['value']:
+            self.base_dir = os.path.dirname(bk_object.properties['filename']['value'])
+        else:
+            self.base_dir = ''
 
         self.queries = dict()
         self.data = dict()
-        self.metamodel = None
 
-        self._preview_rows = None
+    def get_projection(self, previous=None):
+        self.build_queries(self.bk_object.properties['q_data']['value'])
+        for filename, sheet_columns in self.queries.items():
+            for sheet, columns in sheet_columns.items():
+                self.extract((filename, sheet), columns)
+        result = list()
+        for k, v in self.data.items():
+            v['table_name'] = k
+            result.append(v)
+        return result
 
-    def from_extraction_to_data_space(self, ext_data, extr_obj, mdt_obj, data_space, container):
-        another_res = dict()
-        for t, col_val in ext_data.items():
-            table = t.replace(' ', '_')
-            changed_columns = [col.replace(' ', '_') for col in col_val['columns']]
-            fields = data_space.add_df_to_model(pd.DataFrame(col_val['data'], columns=changed_columns),
-                                                table)
-            tbl_obj = extr_obj.add_table(table, fields, mdt_obj.metamodel)
-            tbl_obj.properties['data_space'] = data_space.name
-            if container:
-                container.properties['tables'][table] = tbl_obj.properties['fields']
-            else:
-                another_res[table] = tbl_obj.properties['fields']
+    def get_possible_values(self, _property) -> list:
+        bk_category = self.bk_object.get_bk_category()
+        for t in bk_category.template:
+            if t['self_name'] == _property:
+                return t['possible_values']
+        return list()
 
-        return another_res
+    def init_form(self, model_form):
+        form = ExcelInitForm(model_form, self)
+        form.show()
 
-    @staticmethod
-    def get_export_data(md_obj):
-        excel_dict = {
-            'type': 'ftp_dir',
-            'username': md_obj.properties['username'],
-            'filename': []
+    def get_metadata(self, model_form):
+        metadata_excel = list()
+        filepath = self._get_filepath(self.filename)
+
+        workbook = load_workbook(filepath, read_only=True)
+        data = {}
+        for sheet in workbook.worksheets:
+            for value in sheet.iter_rows(min_row=1, max_row=1, values_only=True):
+                data[sheet.title] = value
+
+        metadata_excel.append(self.transform_mdt(data, self.filename))
+
+        form = ExcelMetadataForm(model_form, self, metadata_excel)
+        form.show()
+
+    def build_queries(self, _q_data):
+        if isinstance(_q_data, str):
+            _q_data = json.loads(_q_data)
+        r = dict()
+        for filename, sheets in _q_data.items():
+            r[filename] = dict()
+            if sheets is None:
+                continue
+            for sheet, columns in sheets.items():
+                if not isinstance(columns, dict):
+                    continue
+                columns = {k: v for k, v in columns.items() if isinstance(v, dict)}
+                r[filename][sheet] = columns
+
+        self.queries = r
+        return r
+
+    def extract(self, fn_sheet, columns):
+        filepath = self._get_filepath(fn_sheet[0])
+        return_data = self.read_and_processing(filepath, sheet_name=fn_sheet[1], usecols=list(columns.keys()), index_col=None)
+        self.data[fn_sheet[1]] = return_data
+
+    def extract_all(self, model_form):
+        self.build_queries(self.bk_object.properties['q_data']['value'])
+        for filename, sheet_columns in self.queries.items():
+            for sheet, columns in sheet_columns.items():
+                self.extract((filename, sheet), columns)
+
+        form = ExcelExtractForm(model_form, self, self.data)
+        form.show()
+
+    def transform_mdt(self, _data, _fn):
+        r = {
+            'ИмяЭлемента': _fn,
+            'ТипЭлемента': 'ИмяФайла',
+            'row': []
         }
-        if md_obj.properties['filename'] != "":
-            excel_dict['filename'].append(md_obj.properties['filename'])
+        for sheet, columns in _data.items():
+            rows = list()
+            for col in columns:
+                if isinstance(col, datetime.datetime):
+                    col = col.strftime('%Y-%m-%d %H:%M:%S')
+                row_dct = {
+                    'ИмяЭлемента': col,
+                    'ТипЭлемента': 'ИмяКолонки'
+                }
+                rows.append(row_dct)
 
-        return excel_dict
+            sheet_dct = {
+                'ИмяЭлемента': sheet,
+                'ТипЭлемента': 'ИмяЛиста',
+                'row': rows
+            }
+            r['row'].append(sheet_dct)
+        return r
 
     def _get_filepath(self, fn):
         return os.path.join(self.base_dir, fn)
@@ -77,41 +146,6 @@ class ExcelConnection(BaseConnectorComponent):
         df.rename(columns=field_map, inplace=True)
         if not df.empty:
             df.to_excel(filepath, sheet_name=table_name, index=False, encoding='utf-8')
-
-    def get_metadata(self):
-        metadata_excel = list()
-        for file in self.filename:
-            filepath = self._get_filepath(file)
-
-            workbook = load_workbook(filepath, read_only=True)
-            data = {}
-            for sheet in workbook.worksheets:
-                for value in sheet.iter_rows(min_row=1, max_row=1, values_only=True):
-                    data[sheet.title] = value
-
-            metadata_excel.append(self.transform_mdt(data, file))
-
-        return metadata_excel
-
-    def build_queries(self, _q_data, preview_rows=0):
-        if isinstance(_q_data, str):
-            _q_data = json.loads(_q_data)
-        r = dict()
-        for filename, sheets in _q_data.items():
-            if filename == 'ТипБазы':
-                continue
-            r[filename] = dict()
-            if sheets is None:
-                continue
-            for sheet, columns in sheets.items():
-                if not isinstance(columns, dict):
-                    continue
-                columns = {k: v for k, v in columns.items() if isinstance(v, dict)}
-                r[filename][sheet] = columns
-
-        self.queries = r
-        self._preview_rows = preview_rows if preview_rows != 0 else None
-        return r
 
     def read_and_processing(self, filepath, sheet_name, usecols=None, index_col=None):
         date_col_called = False
@@ -139,81 +173,13 @@ class ExcelConnection(BaseConnectorComponent):
             base_value = df.iloc[rl, cl]
             df.iloc[rl:rr, cl:cr] = base_value
 
-        if self._preview_rows:
-            # df = df.head(self._preview_rows)
+        for col, t in zip(df.dtypes.index, df.dtypes):
+            # if t in ['datetime64[ns]', 'timedelta64[ns]']:
+            if any(i for i in df[col] if isinstance(i, datetime.datetime) or isinstance(i, datetime.timedelta)):
+                df[col] = df[col].astype('str')
 
-            filename = TMPFile.create_tmp_file(data=df)
-            self.metamodel.tmp_files[filename] = TMPFile.get_iterator(filename, size=100, is_df=False)
-            return_data = TMPFile.next(self.metamodel.tmp_files[filename])
-        else:
-            for col, t in zip(df.dtypes.index, df.dtypes):
-                # if t in ['datetime64[ns]', 'timedelta64[ns]']:
-                if any(i for i in df[col] if isinstance(i, datetime.datetime) or isinstance(i, datetime.timedelta)):
-                    df[col] = df[col].astype('str')
+        df.replace(numpy.nan, 'NaN', inplace=True)
 
-            df.replace(numpy.nan, 'NaN', inplace=True)
-
-            return_data = json.loads(df.to_json(orient='split'))
+        return_data = json.loads(df.to_json(orient='split'))
 
         return return_data
-
-    def extract(self, fn_sheet, columns, dont_change_answer=False):
-        filepath = self._get_filepath(fn_sheet[0])
-        return_data = self.read_and_processing(filepath, sheet_name=fn_sheet[1], usecols=list(columns.keys()), index_col=None)
-        self.data[fn_sheet[1]] = return_data
-
-    def extract_all(self, dont_change_answer=False, metamodel=None):
-        self.metamodel = metamodel
-        for filename, sheet_columns in self.queries.items():
-            for sheet, columns in sheet_columns.items():
-                self.extract((filename, sheet), columns, dont_change_answer)
-
-    def transform_mdt(self, _data, _fn):
-        r = {
-            'ИмяЭлемента': _fn,
-            'ТипЭлемента': 'ИмяФайла',
-            'row': []
-        }
-        for sheet, columns in _data.items():
-            rows = list()
-            for col in columns:
-                if isinstance(col, datetime.datetime):
-                    col = col.strftime('%Y-%m-%d %H:%M:%S')
-                row_dct = {
-                    'ИмяЭлемента': col,
-                    'ТипЭлемента': 'ИмяКолонки'
-                }
-                rows.append(row_dct)
-
-            sheet_dct = {
-                'ИмяЭлемента': sheet,
-                'ТипЭлемента': 'ИмяЛиста',
-                'row': rows
-            }
-            r['row'].append(sheet_dct)
-        return r
-
-
-def test():
-    excel_connector = ExcelConnection(dict(username='guest', filename=['excel_file_1.xlsx', 'excel_file_2.xlsx']))
-    print(excel_connector.get_metadata())
-
-
-def main():
-    field_map = {
-        '_Наименование': 'Наименование',
-        '_Артикул': 'Артикул',
-    }
-
-    tbl = [
-        {
-            '_Наименование': 'А ЭТО НОВЫЙ АРТИКУЛ ОХАЙО',
-            '_Артикул': 'ЭТО НОВОЕ НАИМЕНОВАНИЕ_1',
-        }
-    ]
-    excel_connector = ExcelConnection(dict(username='root', filename='Номенклатура.xlsx'))
-    excel_connector.load_tbl(tbl, 'TDSheet', field_map)
-
-
-if __name__ == '__main__':
-    test()

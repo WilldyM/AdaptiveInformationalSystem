@@ -15,7 +15,7 @@ class MtModelLoad(QDialog, Ui_MtModelLoad):
         self.setupUi(self)
         self.setWindowTitle('Загрузка модели')
         self.setLayout(self.verticalLayout)
-        self.listWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        # self.listWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self.listWidget.itemDoubleClicked.connect(self.on_load_model)
         self.pushButton.clicked.connect(self.on_load_model)

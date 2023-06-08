@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>TtTupleCreate</class>
- <widget class="QWidget" name="TtTupleCreate">
+ <class>TtGroupRename</class>
+ <widget class="QWidget" name="TtGroupRename">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>279</width>
-    <height>137</height>
+    <width>270</width>
+    <height>131</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>Переименование группы</string>
   </property>
   <widget class="QFrame" name="verticalFrame">
    <property name="geometry">
     <rect>
-     <x>-1</x>
-     <y>-2</y>
-     <width>281</width>
-     <height>141</height>
+     <x>0</x>
+     <y>0</y>
+     <width>271</width>
+     <height>131</height>
     </rect>
    </property>
    <property name="styleSheet">
@@ -87,7 +87,7 @@ QLineEdit:hover, QLineEdit:focus {
          </sizepolicy>
         </property>
         <property name="text">
-         <string>Создать</string>
+         <string>Ок</string>
         </property>
         <property name="shortcut">
          <string>Return</string>
@@ -120,16 +120,16 @@ QLineEdit:hover, QLineEdit:focus {
   <connection>
    <sender>pushButton_2</sender>
    <signal>clicked()</signal>
-   <receiver>TtTupleCreate</receiver>
+   <receiver>TtGroupRename</receiver>
    <slot>close()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>185</x>
-     <y>102</y>
+     <x>178</x>
+     <y>100</y>
     </hint>
     <hint type="destinationlabel">
-     <x>139</x>
-     <y>68</y>
+     <x>134</x>
+     <y>65</y>
     </hint>
    </hints>
   </connection>

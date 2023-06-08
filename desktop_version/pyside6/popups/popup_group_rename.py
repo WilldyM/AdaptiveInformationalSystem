@@ -13,7 +13,9 @@ class PopupGroupRename(QDialog, Ui_TtGroupRename):
 
     def __init__(self, parent, item: CustomTreeWidgetItem, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+
         self.setupUi(self)
+        self.setStyleSheet(None)
         self.item = item
         self.lineEdit.setPlaceholderText('Наименование группы')
         self.pushButton.clicked.connect(self.on_rename_group)
@@ -21,6 +23,6 @@ class PopupGroupRename(QDialog, Ui_TtGroupRename):
     def on_rename_group(self):
         value = self.lineEdit.text()
         if value != '':
-            self.parent().on_rename_tuple(item=self.item, value=value, popup=self)
+            self.parent().on_rename_group(item=self.item, value=value, popup=self)
         else:
             MessageInfo('Переименование группы', 'Поле не может быть пустым')

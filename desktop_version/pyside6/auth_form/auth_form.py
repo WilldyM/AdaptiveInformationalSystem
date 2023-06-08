@@ -19,7 +19,7 @@ class AuthForm(QWidget, Ui_AuthForm):
         super().__init__(parent, *args, **kwargs)
         self.setupUi(self)
         self.setLayout(self.verticalLayout)
-        self.resize(200, 90)
+        self.resize(230, 120)
 
         # lineEdit options
         self.lineEdit.setPlaceholderText('Логин')

@@ -6,25 +6,72 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>274</width>
+    <width>280</width>
     <height>137</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Переименование объекта</string>
   </property>
-  <widget class="QWidget" name="verticalLayoutWidget">
+  <widget class="QFrame" name="verticalFrame">
    <property name="geometry">
     <rect>
-     <x>60</x>
-     <y>30</y>
-     <width>160</width>
-     <height>99</height>
+     <x>-1</x>
+     <y>-2</y>
+     <width>281</width>
+     <height>141</height>
     </rect>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">QFrame {
+margin: 0 50%;
+}
+QPushButton {
+margin-top: 10px; 
+margin-bottom: 20px;
+margin-left: 0px;
+margin-right: 0px;
+max-height: 30px;
+min-height: 30px;
+background-color: rgba(255, 255, 255, 20%); 
+border: 1px solid #ccc;
+border-radius: 4px;
+padding: 0;
+}
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 80%);
+}
+QPushButton:pressed {
+    background-color: rgba(255, 255, 255, 100%);
+}
+
+QLineEdit {
+margin-top: 30px;
+max-height: 30px;
+min-height: 30px;
+background-color: #F4F4F4;
+color: #404040;
+border: 1px solid #ccc;
+padding: 1px 5px;
+border-radius: 4px;
+}
+
+QLineEdit:hover, QLineEdit:focus {
+    background-color: #FFFFFF;
+    border: 1px solid #9B9B9B;
+}
+</string>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QLineEdit" name="lineEdit"/>
+     <widget class="QLineEdit" name="lineEdit">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+     </widget>
     </item>
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout" stretch="0,0">
@@ -34,7 +81,7 @@
       <item>
        <widget class="QPushButton" name="pushButton">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -50,7 +97,7 @@
       <item>
        <widget class="QPushButton" name="pushButton_2">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -77,11 +124,11 @@
    <slot>close()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>180</x>
-     <y>92</y>
+     <x>185</x>
+     <y>102</y>
     </hint>
     <hint type="destinationlabel">
-     <x>136</x>
+     <x>139</x>
      <y>68</y>
     </hint>
    </hints>

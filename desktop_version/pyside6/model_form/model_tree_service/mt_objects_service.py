@@ -24,7 +24,7 @@ class MtObjectsService(object):
             menu = QMenu(model_form.modelTreeManagement)
             menu.addAction(display_action1)
 
-            menu.exec_(model_form.modelTreeManagement.mapToGlobal(position))
+            menu.exec(model_form.modelTreeManagement.mapToGlobal(position))
         elif CustomTreeWidgetItem.get_top_level_parent(current_item).get_id() == 'mt_objects' and \
                 current_item.is_top_level() is False and current_item.type_item == 'c_object':
             remove_action = QAction('Удалить объект')
@@ -34,7 +34,7 @@ class MtObjectsService(object):
             menu = QMenu(model_form.modelTreeManagement)
             menu.addActions([remove_action, rename_action])
 
-            menu.exec_(model_form.modelTreeManagement.mapToGlobal(position))
+            menu.exec(model_form.modelTreeManagement.mapToGlobal(position))
 
     @staticmethod
     def on_rename_object_action(model_form):

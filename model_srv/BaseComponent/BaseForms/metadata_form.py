@@ -23,7 +23,7 @@ class MetadataForm(QDialog):
         self.setLayout(QVBoxLayout())
 
         self.treeWidget = QTreeWidget()
-        self.treeWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        # self.treeWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.treeWidget.setColumnCount(3)
         self.treeWidget.headerItem().setText(0, '#')
         self.treeWidget.headerItem().setText(1, 'ИмяЭлемента')

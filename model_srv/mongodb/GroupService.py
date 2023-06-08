@@ -5,7 +5,6 @@ from bson.objectid import ObjectId
 
 from model_srv.mongodb.BaseBackendObject import init_mongo_conn, BaseMongoObject, BaseBackendObject
 from model_srv.mongodb.TuplePartService import BackendTuplePart
-from model_srv.mongodb.TupleService import BackendTuple
 
 
 class MongoGroup(BaseMongoObject):

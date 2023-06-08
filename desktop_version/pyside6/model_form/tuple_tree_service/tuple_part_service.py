@@ -10,6 +10,7 @@ from desktop_version.pyside6.messages.messagebox import MessageInfo, MessageErro
 from desktop_version.pyside6.popups.popup_tuple_part_rename import PopupTuplePartRename
 from desktop_version.pyside6.popups.popup_tuple_part_set_c_object import PopupTuplePartSetCObject
 from model_srv.mongodb.CObjectService import BackendCObject
+from model_srv.mongodb.GroupService import BackendGroup
 from model_srv.mongodb.ModelService import BackendModel
 from model_srv.mongodb.TuplePartService import BackendTuplePart
 from model_srv.mongodb.TupleService import BackendTuple
@@ -62,7 +63,11 @@ class TuplePartService(object):
     @staticmethod
     def on_create_tuple_part(model_form):
         tuple_item: CustomTreeWidgetItem = model_form.tupleTreeManagement.currentItem()
-        bk_tuple = BackendTuple.init_from_mongo(tuple_item.get_id())
+        try:
+            bk_tuple = BackendTuple.init_from_mongo(tuple_item.get_id())
+        except Exception as err:
+            print(err)
+            bk_tuple = BackendGroup.init_from_mongo(tuple_item.get_id())
 
         unique_dn = BackendTuplePart.get_unique_name(model_id=model_form.active_model, start_value='Операнд')
         bk_tuple_part = BackendTuplePart(unique_dn, model_form.active_model, c_object=None)

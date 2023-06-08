@@ -30,11 +30,20 @@ class TupleTreeService(TupleService, TuplePartService):
     def processing_form(model_form, custom_action: CustomAction, current_item: CustomTreeWidgetItem):
         print('processing form')
         parent_item: CustomTreeWidgetItem = current_item.parent()
-        if parent_item.type_item == 'tt_tuple':
+        if parent_item.type_item == 'tt_tuple' or parent_item.type_item == 'tt_group':
+            bk_group = None
+            present_index_from_group = False
+            if parent_item.type_item == 'tt_group':
+                bk_group: BackendGroup = BackendGroup.init_from_mongo(parent_item.get_id())
+                parent_item = parent_item.parent()
+                present_index_from_group = True
             bk_tuple: BackendTuple = BackendTuple.init_from_mongo(parent_item.get_id())
             main_bk_tuple_part: BackendTuplePart = BackendTuplePart.init_from_mongo(current_item.get_id())
 
-            present_tuple_part_index = bk_tuple.tuple_parts.index(str(main_bk_tuple_part._id))
+            if present_index_from_group:
+                present_tuple_part_index = bk_tuple.tuple_parts.index([str(bk_group._id)])
+            else:
+                present_tuple_part_index = bk_tuple.tuple_parts.index(str(main_bk_tuple_part._id))
             previous = None
             _bk_tuple_part = None
             for operand in bk_tuple.tuple_parts[:present_tuple_part_index]:
@@ -46,7 +55,13 @@ class TupleTreeService(TupleService, TuplePartService):
                     elif isinstance(operand, tuple):  # проверка на вложенный кортеж
                         pass
                     elif isinstance(operand, list):  # проверка на группировку
-                        pass
+                        _bk_group = BackendGroup.init_from_mongo(operand[0])
+                        _previous = list()
+                        for _tp in _bk_group.tuple_parts:
+                            _bk_tuple_part: BackendTuplePart = BackendTuplePart.init_from_mongo(_tp)
+                            _bk_object = _bk_tuple_part.get_c_object()
+                            _previous.append(_bk_object.get_projection(previous))
+                        previous = _previous
                 except Exception as err:
                     if isinstance(_bk_tuple_part, BackendTuplePart):
                         dn = _bk_tuple_part.display_name
@@ -55,8 +70,25 @@ class TupleTreeService(TupleService, TuplePartService):
                     err_text = f'Ошибка при выполнении {dn}\nTraceback:\n{err}'
                     MessageError('Ошибка выполнения части кортежа', err_text)
             # предполагается что здесь обрабатывается последний TuplePart
-            main_bk_object = main_bk_tuple_part.get_c_object()
-            main_bk_object.call_form(model_form, custom_action._id, previous=previous)
+            if present_index_from_group:
+                present_tuple_part_index = bk_group.tuple_parts.index(str(main_bk_tuple_part._id))
+                for operand in bk_group.tuple_parts[:present_tuple_part_index]:
+                    try:
+                        _bk_tuple_part: BackendTuplePart = BackendTuplePart.init_from_mongo(operand)
+                        _bk_object = _bk_tuple_part.get_c_object()
+                        _bk_object.get_projection(previous)
+                    except Exception as err:
+                        if isinstance(_bk_tuple_part, BackendTuplePart):
+                            dn = _bk_tuple_part.display_name
+                        else:
+                            dn = current_item.text(0)
+                        err_text = f'Ошибка при выполнении {dn}\nTraceback:\n{err}'
+                        MessageError('Ошибка выполнения части кортежа', err_text)
+                main_bk_object = main_bk_tuple_part.get_c_object()
+                main_bk_object.call_form(model_form, custom_action._id, previous=previous)
+            else:
+                main_bk_object = main_bk_tuple_part.get_c_object()
+                main_bk_object.call_form(model_form, custom_action._id, previous=previous)
 
     @staticmethod
     def show_tt_tuple_context_menu(model_form, position):
@@ -69,7 +101,7 @@ class TupleTreeService(TupleService, TuplePartService):
             actions.append(add_operand)
 
             add_grouping = QAction('Добавить группу')
-            add_grouping.triggered.connect(model_form.on_create_group)  # todo
+            add_grouping.triggered.connect(model_form.on_create_group)
             actions.append(add_grouping)
 
             add_inner_tuple = QAction('Добавить существующий кортеж')
@@ -129,7 +161,7 @@ class TupleTreeService(TupleService, TuplePartService):
             return
 
         menu.addActions(actions)
-        menu.exec_(model_form.tupleTreeManagement.mapToGlobal(position))
+        menu.exec(model_form.tupleTreeManagement.mapToGlobal(position))
 
     @staticmethod
     def init_tuple_tree_root_items(model_form, tuples: List[BackendTuple] = None):
@@ -158,7 +190,7 @@ class TupleTreeService(TupleService, TuplePartService):
                         for tp in obj.tuple_parts:
                             _bk_tp = BackendTuplePart.init_from_mongo(tp)
                             bg_lst.append(_bk_tp.display_name)
-                        perspective_lst.append(json.dumps(bg_lst))
+                        perspective_lst.append(json.dumps(bg_lst, ensure_ascii=False))
                     elif isinstance(obj, BackendTuple):
                         t_lst = list()
                         for tp in obj.tuple_parts:
@@ -172,7 +204,15 @@ class TupleTreeService(TupleService, TuplePartService):
 
     @staticmethod
     def _show_tuple_part(parent, tp_id):
-        bk_tuple_part = BackendTuplePart.init_from_mongo(tp_id)
+        try:
+            bk_tuple_part = BackendTuplePart.init_from_mongo(tp_id)
+        except Exception as err:
+            print(err)
+            if parent.type_item == 'tt_group':
+                bk_group = BackendGroup.init_from_mongo(parent.get_id())
+                bk_group.remove_tuple_part(tp_id)
+                bk_group.update_object()
+            return
         tuple_part_item = CustomTreeWidgetItem(parent, _id=tp_id, type_item='tt_tuple_part')
         tuple_part_item.setText(0, bk_tuple_part.display_name)
         tuple_part_item.setText(1, '[Операнд]')
@@ -207,6 +247,7 @@ class TupleTreeService(TupleService, TuplePartService):
         group_item.setText(1, '[Группа]')
         for tp_id in bk_group.tuple_parts:
             TupleTreeService._show_tuple_part(group_item, tp_id)
+        return bk_group
 
     @staticmethod
     def on_create_group(model_form):

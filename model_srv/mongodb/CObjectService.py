@@ -52,19 +52,22 @@ class BackendCObject(BaseBackendObject):
 
     @init_mongo_conn(MongoCObject)
     def get_projection(self, previous=None):
-        cat_obj = self._import_category()
+        cat_obj = self._import_category(previous)
         projection = cat_obj.get_projection(previous=previous)
         return projection
 
     def call_form(self, model_form, form_id, previous=None):
-        cat_obj = self._import_category()
+        cat_obj = self._import_category(previous)
         called_method = self.forms[form_id]['method']
         exec(f'cat_obj.{called_method}')
 
-    def _import_category(self):
+    def _import_category(self, previous=None):
         category = self.get_bk_category()
         exec(f'{category.cat_import} as _CATEGORY')
-        cat_obj = eval('_CATEGORY(self)')
+        if category._id == 'ADF':
+            cat_obj = eval('_CATEGORY(self, previous)')
+        else:
+            cat_obj = eval('_CATEGORY(self)')
         return cat_obj
 
     @classmethod

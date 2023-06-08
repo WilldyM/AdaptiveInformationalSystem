@@ -5,9 +5,12 @@ import pandas as pd
 import sqlalchemy
 from sqlalchemy.sql.sqltypes import *
 
+from components.SQLConnector.custom_forms.extract_form import SQLExtractForm
+from components.SQLConnector.custom_forms.init_form import SQLInitForm
+from components.SQLConnector.custom_forms.metadata_form import SQLMetadataForm
 from model_srv.BaseComponent.BaseConnectorComponent import BaseConnectorComponent
-from model_srv.utils.Tableload import Tableload
-from model_srv.TMPFile import TMPFile
+from components.SQLConnector.Tableload import Tableload
+from model_srv.mongodb.CObjectService import BackendCObject
 
 """
 
@@ -34,7 +37,8 @@ engine = create_engine('sqlite:////path/to/sqlite3.db')  # абсолютный 
 
 class SQLConnection(BaseConnectorComponent):
 
-    def __init__(self, conn_prm: dict):
+    def __init__(self, bk_object: BackendCObject):
+        self.bk_object = bk_object
         self.dev_drivers = {
             'pymysql': 'mysql',
             'psycopg2': 'postgresql',
@@ -43,101 +47,113 @@ class SQLConnection(BaseConnectorComponent):
         }
 
         # init data for connect
-        self._driver = conn_prm.get('driver')
-        self._server = conn_prm.get('server')
-        self._db = conn_prm.get('database')
-        self._user = conn_prm.get('username')
-        self._pw = conn_prm.get('password')
-        self._trusted_connection = conn_prm.get('trusted_connection', False)
+        self._driver = bk_object.properties['driver']['value']
+        self._server = bk_object.properties['server']['value']
+        self._db = bk_object.properties['database']['value']
+        self._user = bk_object.properties['username']['value']
+        self._pw = bk_object.properties['password']['value']
         self.metamodel = None
 
-        if conn_prm.get('port') == '':
-            conn_prm['port'] = None
-        if conn_prm['port'] is None:
-            self._connect_args = dict(host=conn_prm.get('host'), port=None)
+        if bk_object.properties['port']['value'] == '':
+            bk_object.properties['port']['value'] = None
+        if bk_object.properties['port']['value'] is None:
+            self._connect_args = dict(host=bk_object.properties.get('host', {}).get('value', None), port=None)
         else:
-            self._connect_args = dict(host=conn_prm.get('host'), port=int(conn_prm.get('port')))
+            self._connect_args = dict(host=bk_object.properties.get('host', {}).get('value', None),
+                                      port=int(bk_object.properties['port']['value']))
 
         self._pyodbc_driver = 'ODBC+Driver+17+for+SQL+Server'
-        if self._trusted_connection == 'True' or self._trusted_connection is True:
-            self.conn_str = f'{self.dev_drivers[self._driver]}+{self._driver}://' \
-                            f'@{self._server}/{self._db}?trusted_connection=yes' \
-                            f'&driver={self._pyodbc_driver}'
+        if self._driver == 'pyodbc':
+            self.conn_str = f'{self.dev_drivers[self._driver]}+{self._driver}://{self._user}:{self._pw}' \
+                            f'@{self._server}/{self._db}' \
+                            f'?driver={self._pyodbc_driver}'
         else:
-            if self._driver == 'pyodbc':
-                self.conn_str = f'{self.dev_drivers[self._driver]}+{self._driver}://{self._user}:{self._pw}' \
-                                f'@{self._server}/{self._db}' \
-                                f'?driver={self._pyodbc_driver}'
-            else:
-                self.conn_str = f'{self.dev_drivers[self._driver]}+{self._driver}://{self._user}:{self._pw}' \
-                                f'@{self._server}/{self._db}'
+            self.conn_str = f'{self.dev_drivers[self._driver]}+{self._driver}://{self._user}:{self._pw}' \
+                            f'@{self._server}/{self._db}'
 
         self.engine = None
         self.table_columns = dict()
         self.queries = dict()
         self.data = dict()
-        self._preview_rows = None
+
+    def get_projection(self, previous=None):
+        self.build_queries(self.bk_object.properties['q_data']['value'])
+        for table, query in self.queries.items():
+            self.extract(table, query)
+        result = list()
+        for k, v in self.data.items():
+            v['table_name'] = k
+            result.append(v)
+        return result
+
+    def get_possible_values(self, _property) -> list:
+        bk_category = self.bk_object.get_bk_category()
+        for t in bk_category.template:
+            if t['self_name'] == _property:
+                return t['possible_values']
+        return list()
+
+    def init_form(self, model_form):
+        form = SQLInitForm(model_form, self)
+        form.show()
+
+    def get_metadata(self, model_form):
+        self.set_connection()
+        metadata_sql = dict()
+        inspector = sqlalchemy.inspect(self.engine)
+
+        metadata_sql[self._db] = dict()
+        for table_name in inspector.get_table_names():
+            metadata_sql[self._db][table_name] = dict()
+            for column in inspector.get_columns(table_name):
+                metadata_sql[self._db][table_name][column['name']] = column
+
+        metadata_sql = self.transform_mdt(metadata_sql)
+        self.close_connection()
+        form = SQLMetadataForm(model_form, self, metadata_sql)
+        form.show()
+
+    def build_queries(self, _q_data):
+        if isinstance(_q_data, str):
+            _q_data = json.loads(_q_data)
+        r = dict()
+        for db, tables in _q_data.items():
+            if db == 'ТипБазы':
+                continue
+            for table, columns in tables.items():
+                if not isinstance(columns, dict):
+                    continue
+                col_lst = list([col for col, val in columns.items() if isinstance(val, dict)])
+                self.table_columns[table] = col_lst
+                r[table] = self.create_query_from_db_dict(table, col_lst)
+
+        self.queries = r
+        return r
+
+    def extract(self, tbl, query):
+        self.set_connection()
+
+        self.data[tbl] = list()
+        new_tbl = list()
+        for row in self.engine.execute(sqlalchemy.text(query)):
+            new_row = dict()
+            for i, val in enumerate(list(row)):
+                new_row[self.table_columns[tbl][i]] = str(val)
+
+            new_tbl.append(new_row)
+
+        self.data[tbl] = json.loads(pd.DataFrame(new_tbl).to_json(orient='split'))
+
+    def extract_all(self, model_form):
+        self.build_queries(self.bk_object.properties['q_data']['value'])
+        for table, query in self.queries.items():
+            self.extract(table, query)
+
+        form = SQLExtractForm(model_form, self, self.data)
+        form.show()
 
     def __getstate__(self):
         self.engine = None
-
-    def from_extraction_to_data_space(self, ext_data, extr_obj, mdt_obj, data_space, container):
-        another_res = dict()
-        for t, col_val in ext_data.items():
-            table = t.replace(' ', '_')
-            changed_columns = [col.replace(' ', '_') for col in col_val['columns']]
-            fields = data_space.add_df_to_model(pd.DataFrame(col_val['data'], columns=changed_columns),
-                                                table)
-            tbl_obj = extr_obj.add_table(table, fields, mdt_obj.metamodel)
-            tbl_obj.properties['data_space'] = data_space.name
-            if container:
-                container.properties['tables'][table] = tbl_obj.properties['fields']
-            else:
-                another_res[table] = tbl_obj.properties['fields']
-
-        return another_res
-
-    @staticmethod
-    def get_export_data(md_obj):
-        return None
-
-    @staticmethod
-    def get_drivers_for_users():
-        drs = {
-            'pymysql': '[MySQL]',
-            'psycopg2': '[PostgreSQL]',
-            'cx_oracle': '[Oracle]',
-            'pyodbc': '[MSSQL]',
-            'sqlite': '[SQLite3]'
-        }
-        return drs
-
-    @property
-    def generic_types(self):
-        gt = {
-            'BigInteger': BigInteger,
-            'Boolean': Boolean,
-            'Date': Date,
-            'Time': Time,
-            'DateTime': DateTime,
-            'Float': Float,
-            'Integer': Integer,
-            'Interval': Interval,
-            'LargeBinary': LargeBinary,
-            'String': String,
-            'Text': Text,
-            'Unicode': Unicode,
-            'UnicodeText': UnicodeText
-        }
-        return gt
-
-    def set_connection(self):
-        if not self.engine:
-            self.engine = sqlalchemy.create_engine(self.conn_str, connect_args=self._connect_args,
-                                                   encoding='utf8')
-
-    def close_connection(self):
-        self.engine.dispose()
 
     def create_table(self, tbl_name: str, fields: dict):
         """
@@ -245,36 +261,6 @@ class SQLConnection(BaseConnectorComponent):
             r = ''
         return r
 
-    def extract(self, tbl, query, dont_change_answer=False):
-        self.set_connection()
-
-        self.data[tbl] = list()
-        new_tbl = list()
-        for row in self.engine.execute(sqlalchemy.text(query)):
-            new_row = dict()
-            for i, val in enumerate(list(row)):
-                new_row[self.table_columns[tbl][i]] = str(val)
-
-            new_tbl.append(new_row)
-
-        if self._preview_rows:
-            filename = TMPFile.create_tmp_file(data=new_tbl)
-            self.metamodel.tmp_files[filename] = TMPFile.get_iterator(filename, size=100, is_df=False)
-            next_iter = TMPFile.next(self.metamodel.tmp_files[filename])
-            if not next_iter:
-                next_iter = {
-                    'data': [],
-                    'columns': self.table_columns[tbl]
-                }
-            self.data[tbl] = next_iter
-        else:
-            self.data[tbl] = json.loads(pd.DataFrame(new_tbl).to_json(orient='split'))
-
-    def extract_all(self, dont_change_answer=False, metamodel=None):
-        self.metamodel = metamodel
-        for table, query in self.queries.items():
-            self.extract(table, query, dont_change_answer)
-
     @staticmethod
     def compile_columns(table_name, columns):
         columns = f"[{','.join([f'{table_name}.c.{col}' for col in columns])}]"
@@ -286,49 +272,10 @@ class SQLConnection(BaseConnectorComponent):
         metadata = sqlalchemy.MetaData()
         metadata.reflect(bind=self.engine)
         exec(f'{table_name} = metadata.tables["{table_name}"]')
-        if self._preview_rows:
-            query = str(sqlalchemy.select(eval(columns))) + f' LIMIT {self._preview_rows}'
-        else:
-            query = str(sqlalchemy.select(eval(columns)))
+        query = str(sqlalchemy.select(eval(columns)))
         return query
 
-    def build_queries(self, _q_data, preview_rows=0):
-        if isinstance(_q_data, str):
-            _q_data = json.loads(_q_data)
-        r = dict()
-        self._preview_rows = preview_rows if preview_rows != 0 else None
-        for db, tables in _q_data.items():
-            if db == 'ТипБазы':
-                continue
-            for table, columns in tables.items():
-                if not isinstance(columns, dict):
-                    continue
-                col_lst = list([col for col, val in columns.items() if isinstance(val, dict)])
-                self.table_columns[table] = col_lst
-                r[table] = self.create_query_from_db_dict(table, col_lst)
-
-        self.queries = r
-        return r
-
-    def get_metadata(self):
-        self.set_connection()
-        metadata_sql = dict()
-        inspector = sqlalchemy.inspect(self.engine)
-        # schemas = inspector.get_schema_names()
-
-        metadata_sql[self._db] = dict()
-        # for schema in schemas:
-        #     metadata_sql[self._db][schema] = dict()
-        for table_name in inspector.get_table_names():
-            metadata_sql[self._db][table_name] = dict()
-            for column in inspector.get_columns(table_name):
-                metadata_sql[self._db][table_name][column['name']] = column
-
-        metadata_sql = self.transform_mdt(metadata_sql)
-        self.close_connection()
-        return metadata_sql
-
-    def transform_mdt(self, _mdt):  # mojet kogda-nibud' sdelayu universalniy method...
+    def transform_mdt(self, _mdt):
         r = [
             {
                 'ИмяЭлемента': self._db,
@@ -350,179 +297,42 @@ class SQLConnection(BaseConnectorComponent):
                     'ТипЭлемента': str(col_props['type'])
                 }
                 table_dct['row'].append(col_dct)
-                # for col_prop_key, col_prop_val in col_props.items():
-                #     if col_prop_key in ['nullable', 'default', 'autoincrement', 'comment']:
-                #         continue
-                #     col_prop_dct = {
-                #         'ИмяЭлемента': str(col_prop_key),
-                #         'ТипЭлемента': str(col_prop_val)
-                #     }
-                #     col_dct['row'].append(col_prop_dct)
         return r
 
-
-def main_test_metadata():
-    prms = {
-        'driver': 'psycopg2',
-        'server': 'localhost',
-        'database': 'Michelin',
-        'username': 'postgres',
-        'password': 'admin',
-        'port': 5432,
-        'trusted_connection': False
-    }
-    prms = {
-        'driver': 'pyodbc',
-        'server': 'DESKTOP-UDMTB5K\\SQLEXPRESS',
-        'database': 'Michelin',
-        'username': 'sa',
-        'password': 'Шпщк11235',
-        'port': None,
-        'trusted_connection': False
-    }
-    sqlcon = SQLConnection(prms)
-    print(sqlcon.conn_str)
-    print(sqlcon.get_metadata()[0])
-
-
-def append_field_test_main():
-    prms = {
-        'driver': 'psycopg2',
-        'server': 'localhost',
-        'database': 'Michelin',
-        'username': 'postgres',
-        'password': 'admin',
-        'port': None,
-        'trusted_connection': False
-    }
-    sqlcon = SQLConnection(prms)
-    field_opt = {
-        'type': 'Date',
-        'nullable': True,
-        'primary_key': False
-    }
-    sqlcon.append_field_to_table('new_table', 'NEW_FIELD', field_opt)
-
-
-def create_table_main():
-    prms = {
-        'driver': 'psycopg2',
-        'server': 'localhost',
-        'database': 'Michelin',
-        'username': 'postgres',
-        'password': 'admin',
-        'port': None,
-        'trusted_connection': False
-    }
-    sqlcon = SQLConnection(prms)
-    fields = {
-        'partner_id': {
-            'type': 'Integer',
-            'nullable': False,
-            'primary_key': True
-        },
-        'date': {
-            'type': 'Date',
-            'nullable': True,
-            'primary_key': False
+    @staticmethod
+    def get_drivers_for_users():
+        drs = {
+            'pymysql': '[MySQL]',
+            'psycopg2': '[PostgreSQL]',
+            'cx_oracle': '[Oracle]',
+            'pyodbc': '[MSSQL]',
+            'sqlite': '[SQLite3]'
         }
-    }
-    sqlcon.create_table('sec_sales', fields)
+        return drs
 
-
-def main():
-    prms = {
-        'driver': 'psycopg2',
-        'server': 'localhost',
-        'database': 'Michelin',
-        'username': 'postgres',
-        'password': 'admin',
-        'port': None,
-        'trusted_connection': False
-    }
-
-    field_map = {
-        'id': 'id',
-        'Имя': 'first_name',
-        'Фамилия': 'last_name',
-        'Пол': 'gender',
-        'Почта': 'email',
-        'Дата рождения': 'date_of_birth',
-    }
-
-    tbl = [
-        {
-            'id': 22,
-            'Имя': 'Игорь_Updated',
-            'Фамилия': 'Геша',
-            'Пол': 'М',
-            'Почта': 'example_igor@example.com',
-            'Дата рождения': '2000-11-03'
+    @property
+    def generic_types(self):
+        gt = {
+            'BigInteger': BigInteger,
+            'Boolean': Boolean,
+            'Date': Date,
+            'Time': Time,
+            'DateTime': DateTime,
+            'Float': Float,
+            'Integer': Integer,
+            'Interval': Interval,
+            'LargeBinary': LargeBinary,
+            'String': String,
+            'Text': Text,
+            'Unicode': Unicode,
+            'UnicodeText': UnicodeText
         }
-    ]
+        return gt
 
-    sqlcon = SQLConnection(prms)
-    print(sqlcon.load_tbl(tbl, 'employee', field_map))
+    def set_connection(self):
+        if not self.engine:
+            self.engine = sqlalchemy.create_engine(self.conn_str, connect_args=self._connect_args,
+                                                   encoding='utf8')
 
-
-def sec_sales_test():
-    prms = {
-        'driver': 'psycopg2',
-        'server': 'localhost',
-        'database': 'Michelin',
-        'username': 'postgres',
-        'password': 'admin',
-        'port': None,
-        'trusted_connection': False
-    }
-
-    field_map = {
-        'partner_id': 'partner_id',
-        'datetime': 'datetime',
-        'item': 'item',
-        'x_code': 'x_code',
-        'doc_num': 'doc_num',
-        'reservation_number': 'reservation_number',
-        'mk': 'mk',
-        'trading_place': 'trading_place',
-        'disc': 'disc',
-        'article_number': 'article_number',
-        'item_name': 'item_name',
-        'operation_type': 'operation_type',
-        'price': 'price',
-        'price_disc': 'price_disc',
-        'qty': 'qty',
-        'amount': 'amount',
-        'amount_disc': 'amount_disc',
-        'saler': 'saler'
-    }
-
-    tbl = [
-        {
-            'partner_id': 48268,
-            'datetime': '2022-11-26 15:12:59.000',
-            'item': None,
-            'x_code': 'Х0122505',
-            'doc_num': None,
-            'reservation_number': None,
-            'mk': None,
-            'trading_place': 'Новый',
-            'disc': None,
-            'article_number': None,
-            'item_name': 'Обувь ортопедическая Berkemann Linette р.39,5 (6) черный/серый',
-            'operation_type': 'Продажа',
-            'price': None,
-            'price_disc': 15.00,
-            'qty': 3.00,
-            'amount': None,
-            'amount_disc': None,
-            'saler': 'Четверикова Елена Николаевна'
-        }
-    ]
-
-    sqlcon = SQLConnection(prms)
-    print(sqlcon.load_tbl(tbl, 'sec_sales', field_map))
-
-
-if __name__ == '__main__':
-    sec_sales_test()
+    def close_connection(self):
+        self.engine.dispose()

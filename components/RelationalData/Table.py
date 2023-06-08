@@ -37,12 +37,15 @@ class RlTable(BaseDataComponent):
             MessageInfo('Таблица', 'Нет сохраннёной таблицы')
         return None
 
-    def get_projection(self, previous):
+    def get_projection(self, previous=None):
         if not previous:
-            return self.read_feather()
+            tbl = self.read_feather()
         else:
             self._update_table(model_form=None, previous=previous)
-            return self.read_feather()
+            tbl = self.read_feather()
+        if tbl:
+            tbl['table_name'] = str(self.bk_object._id)
+        return tbl
 
     def show_table(self, model_form, previous=None):
         if not previous:
@@ -56,12 +59,11 @@ class RlTable(BaseDataComponent):
             form = TableLoadDataForm(model_form, self, {self.bk_object.display_name: table_data})
             form.show()
 
-    def _update_table(self, model_form=None, previous: dict = None):
+    def _update_table(self, model_form=None, previous: list = None):
         tmpname = RlTable.get_unique_filename(path=self.base_dir)
         tmp_path = os.path.join(self.base_dir, tmpname)
         try:
-            prev_key = list(previous.keys())[0]
-            prev = previous.pop(prev_key)
+            prev = previous.pop(0)
             _df = pd.DataFrame(data=prev['data'], columns=prev['columns'])
             _df.replace([np.inf, -np.inf], np.nan, inplace=True)
             _df.replace('NaN', np.nan, inplace=True)
