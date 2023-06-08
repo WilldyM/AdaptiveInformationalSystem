@@ -110,16 +110,6 @@ background-color: transparent;
       <property name="placeholderText">
        <string>Выберите объект...</string>
       </property>
-      <item>
-       <property name="text">
-        <string>New Item</string>
-       </property>
-      </item>
-      <item>
-       <property name="text">
-        <string>New Item</string>
-       </property>
-      </item>
      </widget>
     </item>
     <item>
@@ -137,7 +127,7 @@ background-color: transparent;
           </sizepolicy>
          </property>
          <property name="styleSheet">
-          <string notr="true">margin-left: 50%</string>
+          <string notr="true">margin-left: 40%</string>
          </property>
          <property name="text">
           <string>Ок</string>
@@ -156,7 +146,7 @@ background-color: transparent;
           </sizepolicy>
          </property>
          <property name="styleSheet">
-          <string notr="true">margin-right: 50%;</string>
+          <string notr="true">margin-right: 40%;</string>
          </property>
          <property name="text">
           <string>Отмена</string>

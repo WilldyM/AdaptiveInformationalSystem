@@ -96,8 +96,6 @@ class Ui_TtTuplePartSetCObject(object):
         self.verticalLayout_2 = QVBoxLayout(self.verticalFrame)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.comboBox = QComboBox(self.verticalFrame)
-        self.comboBox.addItem("")
-        self.comboBox.addItem("")
         self.comboBox.setObjectName(u"comboBox")
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -118,7 +116,7 @@ class Ui_TtTuplePartSetCObject(object):
         self.pushButton_3.setObjectName(u"pushButton_3")
         sizePolicy.setHeightForWidth(self.pushButton_3.sizePolicy().hasHeightForWidth())
         self.pushButton_3.setSizePolicy(sizePolicy)
-        self.pushButton_3.setStyleSheet(u"margin-left: 50%")
+        self.pushButton_3.setStyleSheet(u"margin-left: 40%")
 
         self.horizontalLayout_2.addWidget(self.pushButton_3)
 
@@ -126,7 +124,7 @@ class Ui_TtTuplePartSetCObject(object):
         self.pushButton_4.setObjectName(u"pushButton_4")
         sizePolicy.setHeightForWidth(self.pushButton_4.sizePolicy().hasHeightForWidth())
         self.pushButton_4.setSizePolicy(sizePolicy)
-        self.pushButton_4.setStyleSheet(u"margin-right: 50%;")
+        self.pushButton_4.setStyleSheet(u"margin-right: 40%;")
 
         self.horizontalLayout_2.addWidget(self.pushButton_4)
 
@@ -141,9 +139,6 @@ class Ui_TtTuplePartSetCObject(object):
 
     def retranslateUi(self, TtTuplePartSetCObject):
         TtTuplePartSetCObject.setWindowTitle(QCoreApplication.translate("TtTuplePartSetCObject", u"\u0423\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430 \u043e\u0431\u044a\u0435\u043a\u0442\u0430", None))
-        self.comboBox.setItemText(0, QCoreApplication.translate("TtTuplePartSetCObject", u"New Item", None))
-        self.comboBox.setItemText(1, QCoreApplication.translate("TtTuplePartSetCObject", u"New Item", None))
-
         self.comboBox.setCurrentText("")
         self.comboBox.setPlaceholderText(QCoreApplication.translate("TtTuplePartSetCObject", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043e\u0431\u044a\u0435\u043a\u0442...", None))
         self.pushButton_3.setText(QCoreApplication.translate("TtTuplePartSetCObject", u"\u041e\u043a", None))

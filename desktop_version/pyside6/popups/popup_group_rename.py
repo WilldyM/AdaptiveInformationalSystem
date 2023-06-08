@@ -13,9 +13,7 @@ class PopupGroupRename(QDialog, Ui_TtGroupRename):
 
     def __init__(self, parent, item: CustomTreeWidgetItem, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-
         self.setupUi(self)
-        self.setStyleSheet(None)
         self.item = item
         self.lineEdit.setPlaceholderText('Наименование группы')
         self.pushButton.clicked.connect(self.on_rename_group)
