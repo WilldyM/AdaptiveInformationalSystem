@@ -15,6 +15,13 @@ class InitForm(QDialog):
         self.edit_props = list()
         self.setup_ui()
 
+    def setup_widget(self):
+        for child in self.layout().children():
+            self.layout().removeItem(child)
+            child.deleteLater()
+        self.edit_props = list()
+        self.setup_ui()
+
     def setup_ui(self):
         self.default_width = 400
         self.default_height = 30

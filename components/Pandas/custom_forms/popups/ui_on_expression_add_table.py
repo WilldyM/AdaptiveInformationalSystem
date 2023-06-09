@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'tt_tuple_part_set_c_object.ui'
+## Form generated from reading UI file 'on_expression_add_table.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.5.1
 ##
@@ -21,14 +21,15 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout,
 
 import config
 
-class Ui_TtTuplePartSetCObject(object):
-    def setupUi(self, TtTuplePartSetCObject):
-        if not TtTuplePartSetCObject.objectName():
-            TtTuplePartSetCObject.setObjectName(u"TtTuplePartSetCObject")
-        TtTuplePartSetCObject.resize(278, 151)
-        self.verticalFrame = QFrame(TtTuplePartSetCObject)
+
+class Ui_OnExpressionAddTable(object):
+    def setupUi(self, OnExpressionAddTable):
+        if not OnExpressionAddTable.objectName():
+            OnExpressionAddTable.setObjectName(u"OnExpressionAddTable")
+        OnExpressionAddTable.resize(281, 161)
+        self.verticalFrame = QFrame(OnExpressionAddTable)
         self.verticalFrame.setObjectName(u"verticalFrame")
-        self.verticalFrame.setGeometry(QRect(-1, -2, 281, 161))
+        self.verticalFrame.setGeometry(QRect(0, 0, 281, 161))
         url_arrow = config.ARROW_PNG.replace("\\", "/")
         self.verticalFrame.setStyleSheet(u"QFrame {\n"
                                          "\n"
@@ -119,7 +120,7 @@ class Ui_TtTuplePartSetCObject(object):
         self.pushButton_3.setObjectName(u"pushButton_3")
         sizePolicy.setHeightForWidth(self.pushButton_3.sizePolicy().hasHeightForWidth())
         self.pushButton_3.setSizePolicy(sizePolicy)
-        self.pushButton_3.setStyleSheet(u"margin-left: 40%")
+        self.pushButton_3.setStyleSheet(u"margin-left: 40%;")
 
         self.horizontalLayout_2.addWidget(self.pushButton_3)
 
@@ -135,22 +136,23 @@ class Ui_TtTuplePartSetCObject(object):
         self.verticalLayout_2.addWidget(self.horizontalFrame)
 
 
-        self.retranslateUi(TtTuplePartSetCObject)
+        self.retranslateUi(OnExpressionAddTable)
+        self.pushButton_4.clicked.connect(OnExpressionAddTable.close)
 
-        QMetaObject.connectSlotsByName(TtTuplePartSetCObject)
+        QMetaObject.connectSlotsByName(OnExpressionAddTable)
     # setupUi
 
-    def retranslateUi(self, TtTuplePartSetCObject):
-        TtTuplePartSetCObject.setWindowTitle(QCoreApplication.translate("TtTuplePartSetCObject", u"\u0423\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430 \u043e\u0431\u044a\u0435\u043a\u0442\u0430", None))
+    def retranslateUi(self, OnExpressionAddTable):
+        OnExpressionAddTable.setWindowTitle(QCoreApplication.translate("OnExpressionAddTable", u"\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0442\u0430\u0431\u043b\u0438\u0446\u044b", None))
         self.comboBox.setCurrentText("")
-        self.comboBox.setPlaceholderText(QCoreApplication.translate("TtTuplePartSetCObject", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043e\u0431\u044a\u0435\u043a\u0442...", None))
-        self.pushButton_3.setText(QCoreApplication.translate("TtTuplePartSetCObject", u"\u041e\u043a", None))
+        self.comboBox.setPlaceholderText(QCoreApplication.translate("OnExpressionAddTable", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043e\u0431\u044a\u0435\u043a\u0442...", None))
+        self.pushButton_3.setText(QCoreApplication.translate("OnExpressionAddTable", u"\u041e\u043a", None))
 #if QT_CONFIG(shortcut)
-        self.pushButton_3.setShortcut(QCoreApplication.translate("TtTuplePartSetCObject", u"Return", None))
+        self.pushButton_3.setShortcut(QCoreApplication.translate("OnExpressionAddTable", u"Return", None))
 #endif // QT_CONFIG(shortcut)
-        self.pushButton_4.setText(QCoreApplication.translate("TtTuplePartSetCObject", u"\u041e\u0442\u043c\u0435\u043d\u0430", None))
+        self.pushButton_4.setText(QCoreApplication.translate("OnExpressionAddTable", u"\u041e\u0442\u043c\u0435\u043d\u0430", None))
 #if QT_CONFIG(shortcut)
-        self.pushButton_4.setShortcut(QCoreApplication.translate("TtTuplePartSetCObject", u"Esc", None))
+        self.pushButton_4.setShortcut(QCoreApplication.translate("OnExpressionAddTable", u"Esc", None))
 #endif // QT_CONFIG(shortcut)
     # retranslateUi
 

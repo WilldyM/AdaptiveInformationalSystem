@@ -4,7 +4,17 @@ from PySide6.QtCore import *
 from PySide6.QtGui import *
 from PySide6.QtWidgets import *
 
+from components.Pandas.custom_forms.popups.on_create_field import PopupCreateField
+from components.Pandas.custom_forms.popups.on_create_table import PopupCreateTable
+from components.Pandas.custom_forms.popups.on_expression_add_field import PopupOnExpressionAddField
+from components.Pandas.custom_forms.popups.on_expression_add_function import PopupOnExpressionAddFunction
+from components.Pandas.custom_forms.popups.on_expression_add_table import PopupOnExpressionAddTable
+from components.Pandas.custom_forms.popups.on_expression_add_value import PopupOnExpressionAddValue
+from components.Pandas.custom_forms.popups.on_rename_field import PopupRenameField
+from components.Pandas.custom_forms.popups.on_rename_table import PopupRenameTable
 from desktop_version.pyside6.custom_items.CustomTreeWidgetItem import CustomTreeWidgetItem
+from desktop_version.pyside6.messages.messagebox import MessageInfo, MessageError
+from model_srv.BaseComponent.BaseForms.extract_form import ExtractForm
 
 
 class OperandsForm(QDialog):
@@ -14,6 +24,10 @@ class OperandsForm(QDialog):
         self.main_object = main_object
         self.options = options
         self.setup_ui()
+
+    def setup_widget(self):
+        self.fill_operands()
+        self.fill_functions()
 
     def setup_ui(self):
         font_style = 'font-size: 15px; color: #444444;'
@@ -78,14 +92,64 @@ class OperandsForm(QDialog):
         self.layout().addWidget(splitter)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        self.operands_tree.itemClicked.connect(lambda item: self.update_expression(item))
-        self.functions_tree.itemDoubleClicked.connect(lambda item: self.add_function_to_expression(item))
+        self.operands_tree.itemClicked.connect(lambda item: self.update_expression(self.operands_tree.currentItem()))
+        self.functions_tree.itemDoubleClicked.connect(lambda item: self.add_function_to_root_expression(self.functions_tree.currentItem()))
 
         self.operands_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.operands_tree.customContextMenuRequested.connect(self.show_operand_context)
 
+        self.functions_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.functions_tree.customContextMenuRequested.connect(self.show_function_context)
+
+        self.expression_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.expression_tree.customContextMenuRequested.connect(self.show_expression_context)
+
         self.fill_operands()
         self.fill_functions()
+
+    def show_expression_context(self, position):
+        current_item: CustomTreeWidgetItem = self.expression_tree.currentItem()
+        actions = list()
+        if current_item:
+            if current_item.type_item == 'param_label' and isinstance(current_item.possible_values, dict):
+                if current_item.possible_values.get('Таблица'):
+                    display_action1 = QAction('Добавить таблицу')
+                    display_action1.triggered.connect(lambda: self.on_expression_add_table(self.expression_tree.currentItem()))
+                    actions.append(display_action1)
+
+                if current_item.possible_values.get('Поле'):
+                    display_action2 = QAction('Добавить столбец')
+                    display_action2.triggered.connect(lambda: self.on_expression_add_field(self.expression_tree.currentItem()))
+                    actions.append(display_action2)
+
+                if current_item.possible_values.get('Функция'):
+                    display_action3 = QAction('Добавить функцию')
+                    display_action3.triggered.connect(lambda: self.on_expression_add_function(self.expression_tree.currentItem()))
+                    actions.append(display_action3)
+
+                if current_item.possible_values.get('Значение', None) is not None:
+                    display_action4 = QAction('Добавить значение')
+                    display_action4.triggered.connect(lambda: self.on_expression_add_value(self.expression_tree.currentItem()))
+                    actions.append(display_action4)
+            elif current_item.type_item in ['col_label', 'table_label', 'value_label', 'func_label']:
+                display_action4 = QAction('Удалить из выражения')
+                display_action4.triggered.connect(lambda: self.on_expression_remove_label(self.expression_tree.currentItem()))
+                actions.append(display_action4)
+            if not actions:
+                return
+            menu = QMenu(self.expression_tree)
+            menu.addActions(actions)
+            menu.exec(self.expression_tree.mapToGlobal(position))
+
+    def show_function_context(self, position):
+        current_item: CustomTreeWidgetItem = self.functions_tree.currentItem()
+        if current_item.type_item == 'func_id':
+            display_action1 = QAction('Добавить в выражение')
+            current_operand: CustomTreeWidgetItem = self.operands_tree.currentItem()
+            display_action1.triggered.connect(lambda: self.add_function_to_root_expression(self.operands_tree.currentItem()))
+            menu = QMenu(self.functions_tree)
+            menu.addAction(display_action1)
+            menu.exec(self.functions_tree.mapToGlobal(position))
 
     def show_operand_context(self, position):
         current_item: CustomTreeWidgetItem = self.operands_tree.currentItem()
@@ -107,9 +171,14 @@ class OperandsForm(QDialog):
             display_action2.triggered.connect(self.on_rename_table)
             actions.append(display_action2)
 
-            display_action4 = QAction('Удалить')
-            display_action4.triggered.connect(self.on_remove_table)
-            actions.append(display_action4)
+            display_action5 = QAction('Отобразить таблицу')
+            display_action5.triggered.connect(self.on_rename_table)
+            actions.append(display_action5)
+
+            if self.options['operands']['tables'][current_item.get_id()]['is_in'] is False:
+                display_action4 = QAction('Удалить')
+                display_action4.triggered.connect(self.on_remove_table)
+                actions.append(display_action4)
         elif current_item.type_item == 'col_id':
             display_action1 = QAction('Переименовать')
             display_action1.triggered.connect(self.on_rename_field)
@@ -125,35 +194,142 @@ class OperandsForm(QDialog):
         menu.addActions(actions)
         menu.exec(self.operands_tree.mapToGlobal(position))
 
-    def on_create_table(self):
-        item: CustomTreeWidgetItem = self.operands_tree.currentItem()
+    def on_expression_remove_label(self, item):
         print(item.get_id())
+        if item.parent().get_id is None or item.parent().type_item in ['root_table_label', 'root_column_label']:
+            is_piece_of_values = False
+        else:
+            is_piece_of_values = True
+
+        struct = CustomTreeWidgetItem.get_struct(item.parent())
+        current_operand = self.operands_tree.currentItem()
+        if current_operand.type_item == 'table_id':
+            struct = {'tables': {current_operand.get_id(): {'expression': struct}}}
+        elif current_operand.type_item == 'col_id':
+            struct = {
+                'tables': {
+                    current_operand.parent().get_id(): {
+                        'fields': {
+                            current_operand.get_id(): {
+                                'expression': struct
+                            }
+                        }
+                    }
+                }
+            }
+        else:
+            return
+
+        try:
+            res = self.main_object.remove_from_struct(struct, item.get_id(), is_piece_of_values=is_piece_of_values)
+        except Exception as err:
+            MessageError('ADF', f'Unhandled error\nTraceback:{err}')
+            return
+        self.options['operands'] = res['operands']
+        self.fill_operands(current_operand)
+
+    def on_expression_add_field(self, item):
+        _form = PopupOnExpressionAddField(self, item)
+        _form.show()
+
+    def on_expression_add_function(self, item):
+        _form = PopupOnExpressionAddFunction(self, item)
+        _form.show()
+
+    def on_expression_add_table(self, item):
+        _form = PopupOnExpressionAddTable(self, item)
+        _form.show()
+
+    def on_expression_add_value(self, item):
+        _form = PopupOnExpressionAddValue(self, item)
+        _form.show()
 
     def on_refresh_table(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        res = self.main_object.refresh_data(None, item.get_id())
+        table_data = {item.text(0): {'columns': res['columns'], 'data': res['data']}}
+        self.options['operands'] = res['operands']
+        self.fill_operands()
+        new_item = CustomTreeWidgetItem.get_item_by_id(self.operands_tree.invisibleRootItem(), item.get_id())
+        if new_item:
+            self.operands_tree.setCurrentItem(new_item)
+            self.update_expression(new_item)
+        _form = ExtractForm(self, None, table_data)
+        _form.show()
 
-    def on_create_field(self):
+    def on_create_table(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        popup = PopupCreateTable(self)
+        popup.show()
 
     def on_rename_table(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        popup = PopupRenameTable(self, item)
+        popup.show()
 
     def on_remove_table(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        struct = {'tables': {}}
+        res = self.main_object.remove_from_struct(struct, item.get_id(), is_piece_of_values=False)
+        MessageInfo('Удаление таблицы', f'Таблица {item.text(0)} успешно удалена')
+        self.options['operands'] = res['operands']
+        self.fill_operands()
+
+    def on_create_field(self):
+        item: CustomTreeWidgetItem = self.operands_tree.currentItem()
+        print(item.get_id())
+        popup = PopupCreateField(self, item)
+        popup.show()
 
     def on_rename_field(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        popup = PopupRenameField(self, item)
+        popup.show()
 
     def on_remove_field(self):
         item: CustomTreeWidgetItem = self.operands_tree.currentItem()
         print(item.get_id())
+        struct = {'tables': {item.parent().get_id(): {'fields': {}}}}
+        res = self.main_object.remove_from_struct(struct, item.get_id(), is_piece_of_values=False)
+        MessageInfo('Удаление столбца', f'Столбец {item.text(0)} успешно удалён')
+        self.options['operands'] = res['operands']
+        self.fill_operands()
 
-    def fill_operands(self):
+    def add_function_to_root_expression(self, item: CustomTreeWidgetItem):
+        if item.type_item == 'func_id':
+            print(item.get_id())
+
+            operand_item: CustomTreeWidgetItem = self.operands_tree.currentItem()
+            func_name = item.get_id()
+            if operand_item.type_item == 'table_id':
+                res = self.main_object.add_function_to_table(operand_item.get_id(), func_name)
+                self.options['operands'] = res['operands']
+            elif operand_item.type_item == 'col_id':
+                struct = {
+                    'tables': {
+                        operand_item.parent().get_id(): {
+                            'fields': {
+                                operand_item.get_id(): {
+                                    'expression': {}
+                                }
+                            }
+                        }
+                    }
+                }
+                res = self.main_object.add_function_to_expression(struct, func_name)
+                self.options['operands'] = res['operands']
+            else:
+                MessageInfo('Добавление фукнции', 'Для добавления функции необходимо \nвыбрать таблицу или столбец')
+                return
+            self.fill_operands()
+
+    def fill_operands(self, item: CustomTreeWidgetItem = None):
+        self.operands_tree.clear()
         root_operand = CustomTreeWidgetItem(self.operands_tree, _id='root_operand', type_item='root_operand')
         root_operand.setText(0, 'Таблицы')
         root_operand.setExpanded(True)
@@ -164,7 +340,14 @@ class OperandsForm(QDialog):
                 col_id_item = CustomTreeWidgetItem(table_id_item, _id=col_id, type_item='col_id')
                 col_id_item.setText(0, col_opt['display_name'])
 
+        if item:
+            new_item = CustomTreeWidgetItem.get_item_by_id(self.operands_tree.invisibleRootItem(), item.get_id())
+            if new_item:
+                self.operands_tree.setCurrentItem(new_item)
+                self.update_expression(new_item)
+
     def fill_functions(self):
+        self.functions_tree.clear()
         for func_type, func_tree in self.options['functions'].items():
             func_type_item = CustomTreeWidgetItem(self.functions_tree, _id=func_type, type_item='func_type')
             func_type_item.setText(0, func_type)
@@ -174,2543 +357,61 @@ class OperandsForm(QDialog):
 
     def update_expression(self, item: CustomTreeWidgetItem):
         self.expression_tree.clear()
-        if item.type_item == 'table_id':
-            label_item = CustomTreeWidgetItem(self.expression_tree, _id=None, type_item='table_label')
-            expression = self.options['operands']['tables'][item.get_id()]['expression']
-        else:
-            label_item = CustomTreeWidgetItem(self.expression_tree, _id=None, type_item='column_label')
-            parent_id = item.parent().get_id()
-            expression = self.options['operands']['tables'][parent_id]['fields'][item.get_id()]['expression']
-        label_item.setText(0, item.text(0))
-        self.fill_expression(label_item, expression)
+        try:
+            if item.type_item == 'table_id':
+                label_item = CustomTreeWidgetItem(self.expression_tree, _id=None, type_item='root_table_label')
+                expression = self.options['operands']['tables'][item.get_id()]['expression']
+            else:
+                label_item = CustomTreeWidgetItem(self.expression_tree, _id=None, type_item='root_column_label')
+                parent_id = item.parent().get_id()
+                expression = self.options['operands']['tables'][parent_id]['fields'][item.get_id()]['expression']
+            label_item.setText(0, item.text(0))
+            self.fill_expression(label_item, expression)
+            label_item.setExpanded(True)
+        except Exception as err:
+            print(err)
 
-    def fill_expression(self, parent, expression):
-        print(expression)
+    @staticmethod
+    def fill_expression(parent, expression):
+        for item, item_prop in expression.items():
+            if item_prop['type'] == 'Поле':
+                OperandsForm.build_field_tree(parent, item_prop)
+            elif item_prop['type'] == 'Таблица':
+                OperandsForm.build_table_tree(parent, item_prop)
+            elif item_prop['type'] == 'Значение':
+                OperandsForm.build_value_tree(parent, item_prop)
+            elif item_prop['type'] == 'Функция':
+                OperandsForm.build_func_tree(parent, item, item_prop)
 
-    def add_function_to_expression(self, item: CustomTreeWidgetItem):
-        if item.type_item == 'func_id':
-            print(item.get_id())
+    @staticmethod
+    def build_field_tree(parent, item_prop):
+        col_label = CustomTreeWidgetItem(parent, _id=item_prop['self_name'], type_item='col_label')
+        col_label.setText(0, item_prop['display_name'])
 
+    @staticmethod
+    def build_table_tree(parent, item_prop):
+        table_label = CustomTreeWidgetItem(parent, _id=item_prop['self_name'], type_item='table_label')
+        table_label.setText(0, item_prop['display_name'])
 
-if __name__ == '__main__':
-    import json
-    _json = '''
-    {
-  "operands": {
-    "main_mapper": {
-      "647fed00ff02460c2b3f2e59": {
-        "source_self_name": "647fed00ff02460c2b3f2e59",
-        "current_self_name": "Excel_Table_1",
-        "fields": {
-          "Производственный_цикл": {
-            "source_self_name": "Производственный_цикл",
-            "current_self_name": "Производственный_цикл",
-            "display_name": "Excel_Table_1.Производственный_цикл"
-          },
-          "Стадия": {
-            "source_self_name": "Стадия",
-            "current_self_name": "Стадия",
-            "display_name": "Excel_Table_1.Стадия"
-          },
-          "Группа_животных": {
-            "source_self_name": "Группа_животных",
-            "current_self_name": "Группа_животных",
-            "display_name": "Excel_Table_1.Группа_животных"
-          },
-          "Длительность_стадии": {
-            "source_self_name": "Длительность_стадии",
-            "current_self_name": "Длительность_стадии",
-            "display_name": "Excel_Table_1.Длительность_стадии"
-          }
-        },
-        "display_name": "Excel_Table_1"
-      },
-      "647ff14dacf26f19a348bf8e": {
-        "source_self_name": "647ff14dacf26f19a348bf8e",
-        "current_self_name": "Excel_Table_2",
-        "fields": {
-          "Производственный_цикл_1": {
-            "source_self_name": "Производственный_цикл_1",
-            "current_self_name": "Производственный_цикл_1",
-            "display_name": "Excel_Table_2.Производственный_цикл_1"
-          },
-          "Стадия_1": {
-            "source_self_name": "Стадия_1",
-            "current_self_name": "Стадия_1",
-            "display_name": "Excel_Table_2.Стадия_1"
-          },
-          "Группа_животных_1": {
-            "source_self_name": "Группа_животных_1",
-            "current_self_name": "Группа_животных_1",
-            "display_name": "Excel_Table_2.Группа_животных_1"
-          },
-          "Длительность_стадии_1": {
-            "source_self_name": "Длительность_стадии_1",
-            "current_self_name": "Длительность_стадии_1",
-            "display_name": "Excel_Table_2.Длительность_стадии_1"
-          },
-          "Процент_осеменения": {
-            "source_self_name": "Процент_осеменения",
-            "current_self_name": "Процент_осеменения",
-            "display_name": "Excel_Table_2.Процент_осеменения"
-          },
-          "Выход_поросят": {
-            "source_self_name": "Выход_поросят",
-            "current_self_name": "Выход_поросят",
-            "display_name": "Excel_Table_2.Выход_поросят"
-          },
-          "Вес_поросёнка": {
-            "source_self_name": "Вес_поросёнка",
-            "current_self_name": "Вес_поросёнка",
-            "display_name": "Excel_Table_2.Вес_поросёнка"
-          },
-          "Процент_оплодотворения": {
-            "source_self_name": "Процент_оплодотворения",
-            "current_self_name": "Процент_оплодотворения",
-            "display_name": "Excel_Table_2.Процент_оплодотворения"
-          }
-        },
-        "display_name": "Excel_Table_2"
-      }
-    },
-    "tables": {
-      "Excel_Table_1": {
-        "fields": {
-          "Производственный_цикл": {
-            "self_name": "Производственный_цикл",
-            "display_name": "Excel_Table_1.Производственный_цикл",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Стадия": {
-            "self_name": "Стадия",
-            "display_name": "Excel_Table_1.Стадия",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Группа_животных": {
-            "self_name": "Группа_животных",
-            "display_name": "Excel_Table_1.Группа_животных",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Длительность_стадии": {
-            "self_name": "Длительность_стадии",
-            "display_name": "Excel_Table_1.Длительность_стадии",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          }
-        },
-        "self_name": "Excel_Table_1",
-        "display_name": "Excel_Table_1",
-        "type": "Таблица",
-        "is_in": true,
-        "expression": {}
-      },
-      "Excel_Table_2": {
-        "fields": {
-          "Производственный_цикл_1": {
-            "self_name": "Производственный_цикл_1",
-            "display_name": "Excel_Table_2.Производственный_цикл_1",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Стадия_1": {
-            "self_name": "Стадия_1",
-            "display_name": "Excel_Table_2.Стадия_1",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Группа_животных_1": {
-            "self_name": "Группа_животных_1",
-            "display_name": "Excel_Table_2.Группа_животных_1",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Длительность_стадии_1": {
-            "self_name": "Длительность_стадии_1",
-            "display_name": "Excel_Table_2.Длительность_стадии_1",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Процент_осеменения": {
-            "self_name": "Процент_осеменения",
-            "display_name": "Excel_Table_2.Процент_осеменения",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Выход_поросят": {
-            "self_name": "Выход_поросят",
-            "display_name": "Excel_Table_2.Выход_поросят",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Вес_поросёнка": {
-            "self_name": "Вес_поросёнка",
-            "display_name": "Excel_Table_2.Вес_поросёнка",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          },
-          "Процент_оплодотворения": {
-            "self_name": "Процент_оплодотворения",
-            "display_name": "Excel_Table_2.Процент_оплодотворения",
-            "type": "Поле",
-            "is_in": true,
-            "expression": {}
-          }
-        },
-        "self_name": "Excel_Table_2",
-        "display_name": "Excel_Table_2",
-        "type": "Таблица",
-        "is_in": true,
-        "expression": {}
-      }
-    }
-  },
-  "functions": {
-    "Функции_агрегирования": {
-      "Медиана": {
-        "type": "Функция",
-        "backend_method": "_f_agr_median",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Среднее": {
-        "type": "Функция",
-        "backend_method": "_f_agr_avg",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "АГР_Сумма": {
-        "type": "Функция",
-        "backend_method": "_f_agr_sum",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Количество": {
-        "type": "Функция",
-        "backend_method": "_f_agr_count",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Количество_уникальных": {
-        "type": "Функция",
-        "backend_method": "_f_agr_nunique",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Минимум": {
-        "type": "Функция",
-        "backend_method": "_f_agr_min",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Максимум": {
-        "type": "Функция",
-        "backend_method": "_f_agr_max",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Кумулятивная_сумма": {
-        "type": "Функция",
-        "backend_method": "_f_agr_cumsum",
-        "return_type": [
-          "Поле",
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Агрегируемый_показатель": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Анализ_данных": {
-      "Корреляция": {
-        "type": "Функция",
-        "backend_method": "_f_ad_corr",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица",
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Ранговая_корреляция": {
-        "type": "Функция",
-        "backend_method": "_f_ad_rang_corr",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Частичная_корреляция": {
-        "type": "Функция",
-        "backend_method": "_f_ad_partial_corr",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Контролируемая_переменная": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Арифметические_операции": {
-      "Сумма": {
-        "type": "Функция",
-        "backend_method": "_f_ao_sum",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Разность": {
-        "type": "Функция",
-        "backend_method": "_f_ao_difference",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Произведение": {
-        "type": "Функция",
-        "backend_method": "_f_ao_composition",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Частное": {
-        "type": "Функция",
-        "backend_method": "_f_ao_quotient",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Неполное_частное": {
-        "type": "Функция",
-        "backend_method": "_f_ao_partial_quotient",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Остаток_частного": {
-        "type": "Функция",
-        "backend_method": "_f_ao_remainder_quotient",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Модуль[abs]": {
-        "type": "Функция",
-        "backend_method": "_f_ao_abs",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Округление": {
-        "type": "Функция",
-        "backend_method": "_f_ao_round",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Преобразование_типов": {
-      "int64": {
-        "type": "Функция",
-        "backend_method": "_f_pt_int64",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "float64": {
-        "type": "Функция",
-        "backend_method": "_f_pt_float64",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "datetime64[ns]": {
-        "type": "Функция",
-        "backend_method": "_f_pt_datetime64",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "str": {
-        "type": "Функция",
-        "backend_method": "_f_pt_str",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Логические_операторы": {
-      "Оператор_И": {
-        "type": "Функция",
-        "backend_method": "_f_lo_and",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_ИЛИ": {
-        "type": "Функция",
-        "backend_method": "_f_lo_or",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Функция": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Операторы_сравнения": {
-      "[ОД]_Оператор_>": {
-        "type": "Функция",
-        "backend_method": "_f_os_bolshe",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Оператор_>=": {
-        "type": "Функция",
-        "backend_method": "_f_os_bolshe_libo_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Оператор_<": {
-        "type": "Функция",
-        "backend_method": "_f_os_menshe",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Оператор_<=": {
-        "type": "Функция",
-        "backend_method": "_f_os_menshe_libo_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Оператор_==": {
-        "type": "Функция",
-        "backend_method": "_f_os_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Оператор_!=": {
-        "type": "Функция",
-        "backend_method": "_f_os_ne_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "[ОД]_Промежуток": {
-        "type": "Функция",
-        "backend_method": "_f_os_between",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Начало": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {}
-              }
-            },
-            "Конец": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_>": {
-        "type": "Функция",
-        "backend_method": "_f_os_bolshe",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_>=": {
-        "type": "Функция",
-        "backend_method": "_f_os_bolshe_libo_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_<": {
-        "type": "Функция",
-        "backend_method": "_f_os_menshe",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_<=": {
-        "type": "Функция",
-        "backend_method": "_f_os_menshe_libo_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_==": {
-        "type": "Функция",
-        "backend_method": "_f_os_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Оператор_!=": {
-        "type": "Функция",
-        "backend_method": "_f_os_ne_ravno",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Левый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Правый_операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Промежуток": {
-        "type": "Функция",
-        "backend_method": "_f_os_between",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Операнд": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            },
-            "Начало": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {}
-              }
-            },
-            "Конец": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Значение": {}
-              }
-            },
-            "Если_верно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Если_ложно": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Реляционная_алгебра": {
-      "Соединение": {
-        "type": "Функция",
-        "backend_method": "_f_ra_concatenation",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица_1": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Таблица_2": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Объединить_по_столбцу_слева": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Объединить_по_столбцу_справа": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Соединение[LEFT]": {
-        "type": "Функция",
-        "backend_method": "_f_ra_concatenation_left",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица_1": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Таблица_2": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Объединить_по_столбцу_слева": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Объединить_по_столбцу_справа": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Соединение[RIGHT]": {
-        "type": "Функция",
-        "backend_method": "_f_ra_concatenation_right",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица_1": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Таблица_2": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Объединить_по_столбцу_слева": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Объединить_по_столбцу_справа": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Соединение[OUTER]": {
-        "type": "Функция",
-        "backend_method": "_f_ra_concatenation_outer",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица_1": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Таблица_2": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Объединить_по_столбцу_слева": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Объединить_по_столбцу_справа": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Объединение": {
-        "type": "Функция",
-        "backend_method": "_f_ra_union",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица_1": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Таблица_2": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Объединить_по_столбцу_слева": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Объединить_по_столбцу_справа": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Отбор_данных": {
-        "type": "Функция",
-        "backend_method": "_f_ra_data_selection",
-        "return_type": [
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Функция_сравнения": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Функция": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Сортировка_восходящая": {
-        "type": "Функция",
-        "backend_method": "_f_ra_sort_increase",
-        "return_type": [
-          "Поле",
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Сортировка_нисходящая": {
-        "type": "Функция",
-        "backend_method": "_f_ra_sort_decrease",
-        "return_type": [
-          "Поле",
-          "Таблица"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Измерения": {
-              "values": {},
-              "if_return_type": [
-                "Поле",
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      },
-      "Копия": {
-        "type": "Функция",
-        "backend_method": "_f_ra_copy",
-        "return_type": [
-          "Таблица",
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Таблица": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Таблица": {},
-                "Функция": {}
-              }
-            },
-            "Поле": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            },
-            "Результирующие_поля": {
-              "values": {},
-              "if_return_type": [
-                "Таблица"
-              ],
-              "__possible_values__": {
-                "Поле": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Работа_с_датой": {
-      "Начало_дня": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_start_day",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Начало_недели": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_start_week",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Начало_месяца": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_start_month",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Начало_года": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_start_year",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Сбор_даты_и_времени": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_set_datetime_from_parts",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Год": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Месяц": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "День": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Час": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Минута": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Секунда": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Сбор_даты": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_set_date_from_parts",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Год": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "Месяц": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            },
-            "День": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {},
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_Год": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_year_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_Месяц": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_month_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_День": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_day_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_Час": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_hour_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_Минуту": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_minute_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      },
-      "Получить_Секунду": {
-        "type": "Функция",
-        "backend_method": "_f_rsd_get_second_from_date",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Измерение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Поле": {},
-                "Функция": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "Прочее": {
-      "Значение": {
-        "type": "Функция",
-        "backend_method": "_f_pr_value",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {
-            "Значение": {
-              "values": {},
-              "if_return_type": [
-                "Поле"
-              ],
-              "__possible_values__": {
-                "Значение": {}
-              }
-            }
-          }
-        }
-      },
-      "NaN": {
-        "type": "Функция",
-        "backend_method": "_f_pr_nan",
-        "return_type": [
-          "Поле"
-        ],
-        "tree_struct": {
-          "Параметры": {}
-        }
-      }
-    }
-  }
-}
-    '''
-    _options = json.loads(_json)
+    @staticmethod
+    def build_value_tree(parent, item_prop):
+        value_label = CustomTreeWidgetItem(parent, _id=item_prop['self_name'], type_item='value_label')
+        value_label.setText(0, item_prop['display_name'])
+        _val = CustomTreeWidgetItem(value_label, _id='value', type_item='_val')
+        _val.setText(0, 'value')
+        _true_value = list(item_prop['tree_struct']['value'].values())[0]['self_name']
+        true_value = CustomTreeWidgetItem(_val, _id=_true_value, type_item='true_value')
+        true_value.setText(0, str(_true_value))
 
-    app = QApplication(sys.argv)
-    form = OperandsForm(options=_options)
-    form.show()
-    sys.exit(app.exec())
+    @staticmethod
+    def build_func_tree(parent, func_name, func_prop):
+        func_label = CustomTreeWidgetItem(parent, _id=func_name, type_item='func_label')
+        func_label.setText(0, func_name)
+        parameters_label = CustomTreeWidgetItem(func_label, _id='Параметры', type_item='parameters_label')
+        parameters_label.setText(0, 'Параметры')
+        for param, param_prop in func_prop['tree_struct']['Параметры'].items():
+            param_label = CustomTreeWidgetItem(parameters_label, _id=param, type_item='param_label')
+            param_label.setText(0, f'[+] {param}')
+            param_label.possible_values = param_prop['__possible_values__']
+            OperandsForm.fill_expression(param_label, param_prop['values'])
+

@@ -50,6 +50,13 @@ class CSVConnection(BaseConnectorComponent):
         return list()
 
     def init_form(self, model_form):
+        for widget in model_form.children():
+            if isinstance(widget, CSVInitForm):
+                form = widget
+                form.main_object = self
+                form.setup_widget()
+                form.show()
+                return
         form = CSVInitForm(model_form, self)
         form.show()
 
@@ -60,6 +67,14 @@ class CSVConnection(BaseConnectorComponent):
         except UnicodeDecodeError:
             csv_df = pd.read_csv(filepath, delimiter=self.delimiter, low_memory=False, encoding='cp1251')
         metadata_csv = self.transform_mdt(csv_df)
+        for widget in model_form.children():
+            if isinstance(widget, CSVMetadataForm):
+                form = widget
+                form.main_object = self
+                form.metadata = metadata_csv
+                form.setup_widget()
+                form.show()
+                return
         form = CSVMetadataForm(model_form, self, metadata_csv)
         form.show()
 
@@ -126,6 +141,14 @@ class CSVConnection(BaseConnectorComponent):
         for filename, columns in self.queries.items():
             self.extract(filename, columns)
 
+        for widget in model_form.children():
+            if isinstance(widget, CSVExtractForm):
+                form = widget
+                form.main_object = self
+                form.tables = self.data
+                form.setup_widget()
+                form.show()
+                return
         form = CSVExtractForm(model_form, self, self.data)
         form.show()
 

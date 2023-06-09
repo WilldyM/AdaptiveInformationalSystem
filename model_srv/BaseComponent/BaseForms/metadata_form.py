@@ -18,6 +18,10 @@ class MetadataForm(QDialog):
         self.setWindowTitle('Форма выбора метаданных')
         self.setup_ui()
 
+    def setup_widget(self):
+        self.treeWidget.clear()
+        self.fill_metadata(self.treeWidget, self.metadata)
+
     def setup_ui(self):
         self.resize(800, 600)
         self.setLayout(QVBoxLayout())

@@ -49,6 +49,13 @@ class ExcelConnection(BaseConnectorComponent):
         return list()
 
     def init_form(self, model_form):
+        for widget in model_form.children():
+            if isinstance(widget, ExcelInitForm):
+                form = widget
+                form.main_object = self
+                form.show()
+                form.setup_widget()
+                return
         form = ExcelInitForm(model_form, self)
         form.show()
 
@@ -63,7 +70,14 @@ class ExcelConnection(BaseConnectorComponent):
                 data[sheet.title] = value
 
         metadata_excel.append(self.transform_mdt(data, self.filename))
-
+        for widget in model_form.children():
+            if isinstance(widget, ExcelMetadataForm):
+                form = widget
+                form.main_object = self
+                form.metadata = metadata_excel
+                form.setup_widget()
+                form.show()
+                return
         form = ExcelMetadataForm(model_form, self, metadata_excel)
         form.show()
 
@@ -94,7 +108,14 @@ class ExcelConnection(BaseConnectorComponent):
         for filename, sheet_columns in self.queries.items():
             for sheet, columns in sheet_columns.items():
                 self.extract((filename, sheet), columns)
-
+        for widget in model_form.children():
+            if isinstance(widget, ExcelExtractForm):
+                form = widget
+                form.main_object = self
+                form.tables = self.data
+                form.setup_widget()
+                form.show()
+                return
         form = ExcelExtractForm(model_form, self, self.data)
         form.show()
 

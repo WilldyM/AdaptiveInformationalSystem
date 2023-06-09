@@ -18,6 +18,10 @@ class ExtractForm(QDialog):
         self.tables = tables
         self.setup_ui()
 
+    def setup_widget(self):
+        self.tabWidget.clear()
+        self.fill_tab_widget()
+
     def setup_ui(self):
         self.resize(800, 600)
         self.setLayout(QVBoxLayout())

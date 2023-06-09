@@ -1,10 +1,12 @@
 import datetime
+import sys
 from pathlib import Path
 import os
 import copy
 import tempfile
 import json
 
+from PySide6.QtWidgets import QApplication
 from fastnumbers import fast_real
 import pandas as pd
 import numpy as np
@@ -58,8 +60,9 @@ class AdvancedDataFrame(BaseDataComponent):
 
     def get_projection(self, previous=None):
         result_tables = list()
-        for tbl_name in self.operands['tables'].keys():
-            result_tables.append(self.refresh_data(None, tbl_name))
+        for tbl_name in self.operands['tables'].values():
+            if not tbl_name['is_in']:
+                result_tables.append(self.refresh_data(None, tbl_name['self_name']))
         return result_tables
 
     def load_options(self, model_form, previous=None):
@@ -70,7 +73,15 @@ class AdvancedDataFrame(BaseDataComponent):
             'operands': self.update_possible_values(),
             'functions': self.options['functions']
         }
-        form = OperandsForm(model_form, options=r)
+        for widget in model_form.children():
+            if isinstance(widget, OperandsForm):
+                form = widget
+                form.main_object = self
+                form.options = r
+                form.setup_widget()
+                form.show()
+                return
+        form = OperandsForm(model_form, main_object=self, options=r)
         form.show()
 
     def update_from_mapper(self):
@@ -140,7 +151,8 @@ class AdvancedDataFrame(BaseDataComponent):
                     break
 
     def update_user_fields_to_mapper(self, tbl, fields):
-        current_names_of_mapper = {v['current_self_name']: v for v in self.operands['main_mapper'][tbl]['fields'].values()}
+        current_names_of_mapper = {v['current_self_name']: v for v in
+                                   self.operands['main_mapper'][tbl]['fields'].values()}
         exists_fields = []
         for fld, opt in fields.items():
             if fld not in current_names_of_mapper.keys():
@@ -930,7 +942,6 @@ class AdvancedDataFrame(BaseDataComponent):
                     self.tables['__table_df__'] = self.table_df
                     self._transform_to_datetime()
                     self._transform_from_datetime()
-
 
                     res_data = json.loads(self.table_df.to_json(orient='split'))
                     res_data.pop('index')

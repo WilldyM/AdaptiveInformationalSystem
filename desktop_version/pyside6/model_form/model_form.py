@@ -42,6 +42,12 @@ class ModelForm(QWidget, Ui_ModelForm):
         # init default schema
         self.init_model_tree_root_items()
 
+    def closing_qdialog(self, qdialog):
+        # for widget in self.children():
+        #     if widget is qdialog:
+        #         widget.reject()
+        pass
+
     def setup_ui(self):
         self.setupUi(self)
         self.setLayout(self.verticalLayout)

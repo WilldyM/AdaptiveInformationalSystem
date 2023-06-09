@@ -56,6 +56,14 @@ class RlTable(BaseDataComponent):
     def _show_table(self, model_form):
         table_data = self.read_feather(change_answer=True)
         if table_data is not None:
+            for widget in model_form.children():
+                if isinstance(widget, TableLoadDataForm):
+                    form = widget
+                    form.main_object = self
+                    form.tables = {self.bk_object.display_name: table_data}
+                    form.setup_widget()
+                    form.show()
+                    return
             form = TableLoadDataForm(model_form, self, {self.bk_object.display_name: table_data})
             form.show()
 
